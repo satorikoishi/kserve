@@ -41,6 +41,10 @@ spec:
       env: 
         - name: WITH_WORKLOAD
           value: "false"
+    driver:
+      env:
+        - name: DISABLE_DEV_CHAR_SYMLINK_CREATION
+          value: "true"
 
   mig:
     strategy: single
@@ -180,7 +184,7 @@ spec:
     env: 
       []
   toolkit:
-    enabled: true
+    enabled: false
     repository: nvcr.io/nvidia/k8s
     image: container-toolkit
     version: "v1.14.3-ubuntu20.04"
