@@ -5155,6 +5155,7 @@ data:
   # This is the Go import path for the binary that is containerized
   # and substituted here.
   queue-sidecar-image: gcr.lank8s.cn/knative-releases/knative.dev/serving/cmd/queue@sha256:9b9b7adc18bfc9e7eb0bc7896c2f5033a5363a44448519043f84f57aa39a6304
+  progress-deadline: "3600s"
   _example: |-
     ################################
     #                              #
