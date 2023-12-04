@@ -64,3 +64,7 @@ python/kserve/tox.ini
 
 # Downloaded by hack install
 hack/istio-*
+
+# Downloaded models
+model_archive
+scripts/setup_config.json
