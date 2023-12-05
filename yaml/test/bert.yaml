@@ -5,7 +5,7 @@ metadata:
 spec:
   predictor:
     pytorch:
-      storageUri: pvc://task-pv-claim
+      storageUri: pvc://task-pv-claim/bert
       resources:
         limits:
           memory: 4Gi
