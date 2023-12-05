@@ -8,7 +8,7 @@ spec:
       modelFormat:
         name: pytorch
       runtimeVersion: 0.8.2
-      storageUri: gs://kfserving-examples/models/torchserve/llm/Huggingface_accelerate/bloom
+      storageUri: pvc://task-pv-claim
       resources:
         limits:
           cpu: "2"
