@@ -68,4 +68,5 @@ hack/istio-*
 # Downloaded models
 model_archive/*
 !/model_archive/handler
+!/model_archive/config
 scripts/setup_config.json

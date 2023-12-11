@@ -2,6 +2,7 @@ import os
 import argparse
 from transformers import AutoModel, AutoConfig, AutoTokenizer
 import subprocess
+import shutil
 
 def get_model_basename(model_name):
     """
@@ -79,6 +80,31 @@ def create_mar_file(model_name, version, model_file, handler_file, extra_files=N
     # Create the .mar file
     subprocess.run(mar_command)
 
+def setup_model_store(model_basename, model_seriesname, save_directory, config_template_dir):
+    # Move mar to model store
+    shutil.move(f'{model_basename}.mar', os.path.join(save_directory, f'model-store/{model_basename}.mar'))
+    # Generate config.properties from template
+    template_config = os.path.join(config_template_dir, "config.properties")
+    target_config = os.path.join(save_directory, 'config/config.properties')
+    replacements = {
+        "MODEL_NAME": model_seriesname,
+        "MAR_FILE_NAME": f'{model_basename}.mar'
+    }
+    try:
+        with open(template_config, 'r') as file:
+            content = file.read()
+    except IOError as e:
+        print(f"Error reading file: {e}")
+        return
+    for old, new in replacements.items():
+        content = content.replace(old, new)
+    try:
+        with open(target_config, 'w') as file:
+            file.write(content)
+        print(f"File '{target_config}' updated successfully.")
+    except IOError as e:
+        print(f"Error writing file: {e}")
+
 def main():
     parser = argparse.ArgumentParser(description="Download a Hugging Face model with its config and tokenizer.")
     parser.add_argument("--model_name", "-m", type=str, help="The name of the model to download.")
@@ -89,14 +115,14 @@ def main():
     model_seriesname = get_model_seriesname(model_basename)
     save_directory = os.path.join(os.path.dirname(__file__), f"../model_archive/{model_basename}")
     handler_dir = os.path.join(os.path.dirname(__file__), f"../model_archive/handler")
+    config_template_dir = os.path.join(os.path.dirname(__file__), f"../model_archive/config")
     extra_json_files = ["config.json", "special_tokens_map.json", "tokenizer.json", "tokenizer_config.json"]
 
     download_and_save_model(model_name, save_directory)
     create_mar_file(model_basename, "1.0", os.path.join(save_directory, "pytorch_model.bin"), os.path.join(handler_dir, f"{model_seriesname}_handler.py"),
         extra_files=','.join([os.path.join(save_directory, j) for j in extra_json_files]),
     )
-    # Move to model store
-    subprocess.run(f"mv {model_basename}.mar {os.path.join(save_directory, 'model-store')}", shell=True)
+    setup_model_store(model_basename, model_seriesname, save_directory, config_template_dir)
     
 if __name__ == "__main__":
     main()
