@@ -3,6 +3,8 @@ import argparse
 from transformers import AutoModel, AutoConfig, AutoTokenizer
 import subprocess
 import shutil
+from kubernetes import client, config
+from kubernetes.stream import stream
 
 def get_model_basename(model_name):
     """
@@ -105,6 +107,44 @@ def setup_model_store(model_basename, model_seriesname, save_directory, config_t
     except IOError as e:
         print(f"Error writing file: {e}")
 
+def setup_deployment(model_basename, save_directory, yaml_dir):
+    # mkdir in storage pod
+    config.load_kube_config()
+    v1 = client.CoreV1Api()
+    try:
+        # Executing the command
+        resp = stream(v1.connect_get_namespaced_pod_exec, "model-store-pod", "default",
+                      command=f"mkdir -p /pv/{model_basename}/config && mkdir -p /pv/{model_basename}/model-store".split(),
+                      stderr=True, stdin=False,
+                      stdout=True, tty=False)
+        print("Response: " + resp)
+    except Exception as e:
+        print(f"Exception when executing command in pod: {e}")
+    # Copy config and mar
+    subprocess.run(f"kubectl cp {save_directory}/config/config.properties model-store-pod:/pv/{model_basename}/config", shell=True)
+    subprocess.run(f"kubectl cp {save_directory}/model-store/{model_basename}.mar model-store-pod:/pv/{model_basename}/model-store", shell=True)
+    # Generate yaml from template
+    template_yaml = os.path.join(yaml_dir, "template.yaml")
+    target_yaml = os.path.join(yaml_dir, f"{model_basename}.yaml")
+    replacements = {
+        "METADATA_NAME": model_basename,
+        "STORAGE_DIR": model_basename
+    }
+    try:
+        with open(template_yaml, 'r') as file:
+            content = file.read()
+    except IOError as e:
+        print(f"Error reading file: {e}")
+        return
+    for old, new in replacements.items():
+        content = content.replace(old, new)
+    try:
+        with open(target_yaml, 'w') as file:
+            file.write(content)
+        print(f"File '{target_yaml}' updated successfully.")
+    except IOError as e:
+        print(f"Error writing file: {e}")
+
 def main():
     parser = argparse.ArgumentParser(description="Download a Hugging Face model with its config and tokenizer.")
     parser.add_argument("--model_name", "-m", type=str, help="The name of the model to download.")
@@ -116,6 +156,7 @@ def main():
     save_directory = os.path.join(os.path.dirname(__file__), f"../model_archive/{model_basename}")
     handler_dir = os.path.join(os.path.dirname(__file__), f"../model_archive/handler")
     config_template_dir = os.path.join(os.path.dirname(__file__), f"../model_archive/config")
+    yaml_dir = os.path.join(os.path.dirname(__file__), f"../yaml/test")
     extra_json_files = ["config.json", "special_tokens_map.json", "tokenizer.json", "tokenizer_config.json"]
 
     download_and_save_model(model_name, save_directory)
@@ -123,6 +164,9 @@ def main():
         extra_files=','.join([os.path.join(save_directory, j) for j in extra_json_files]),
     )
     setup_model_store(model_basename, model_seriesname, save_directory, config_template_dir)
+    setup_deployment(model_basename, save_directory, yaml_dir)
+    
+    ## TODO: set and unset proxy
     
 if __name__ == "__main__":
     main()
