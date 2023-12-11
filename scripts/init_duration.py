@@ -2,6 +2,10 @@ from kubernetes import client, config
 from datetime import datetime, timezone
 import re
 import argparse
+import csv
+import os
+
+CONTAINER_EVENT_COUNT = 3
 
 def find_pod_by_partial_name(namespace, partial_pod_name):
     """
@@ -63,6 +67,33 @@ def get_container_duration(namespace, pod_name, container_name):
                 else:
                     return "Container is not in a terminated or running state."
         return "Container not found."
+    except client.rest.ApiException as e:
+        print(f"Exception when calling CoreV1Api->read_namespaced_pod: {e}")
+        return None
+
+def get_container_event_ts(namespace, pod_name):
+    try:
+        config.load_kube_config()
+        v1 = client.CoreV1Api()
+        pod = v1.read_namespaced_pod(name=pod_name, namespace=namespace)
+
+        all_containers = (pod.status.init_container_statuses or []) + (pod.status.container_statuses or [])
+        
+        event_ts = []
+        for container_status in all_containers:
+            if container_status.name == "storage-initializer":
+                print(f"Found container: {container_status.name}")
+                assert container_status.state.terminated
+                start_time = container_status.state.terminated.started_at
+                end_time = container_status.state.terminated.finished_at
+                event_ts.append([start_time, "Init start"])
+                event_ts.append([end_time, "Init finish"])
+            if container_status.name == "kserve-container":
+                print(f"Found container: {container_status.name}")
+                assert container_status.state.running
+                start_time = container_status.state.running.started_at
+                event_ts.append([start_time, "Kserve start"])
+        return event_ts
     except client.rest.ApiException as e:
         print(f"Exception when calling CoreV1Api->read_namespaced_pod: {e}")
         return None
@@ -131,51 +162,75 @@ def parse_log_line(log_line, required_substrings_sequence, index):
             return timestamp, event
     return None, None
 
-# Set up argument parser
-parser = argparse.ArgumentParser(description="Get the duration of a container in a Kubernetes pod")
-parser.add_argument("-n", "--namespace", default="default", help="The namespace of the pod")
-parser.add_argument("-p", "--pod_name", help="The partial pod name pattern (regex)")
-parser.add_argument("-c", "--container_name", help="The container name")
 
-# Parse arguments
-args = parser.parse_args()
+if __name__ == "__main__":
+    # Set up argument parser
+    parser = argparse.ArgumentParser(description="Get the duration of a container in a Kubernetes pod")
+    parser.add_argument("-n", "--namespace", default="default", help="The namespace of the pod")
+    parser.add_argument("-p", "--pod_name", help="The partial pod name pattern (regex)")
+    # parser.add_argument("-c", "--container_name", help="The container name")
 
-pod_name = find_pod_by_partial_name(args.namespace, args.pod_name)
-if not pod_name:
-    print("No pod found matching the pattern.")
-    exit(1)
+    # Parse arguments
+    args = parser.parse_args()
 
-print(f"Found pod: {pod_name}")
-duration = get_container_duration(args.namespace, pod_name, args.container_name)
-if duration:
-    print(duration)
-logs = get_pod_logs(args.namespace, pod_name)
-if not logs:
-    print("No logs available")
-    exit(1)
+    pod_name = find_pod_by_partial_name(args.namespace, args.pod_name)
+    if not pod_name:
+        print("No pod found matching the pattern.")
+        exit(1)
+    print(f"Found pod: {pod_name}")
     
-required_substrings_sequence=[["When deploying to production, make sure to limit the set of"],
-                              ["main org.pytorch.serve.snapshot.SnapshotManager", "Started restoring models from snapshot"],
-                              ["Started server process"],
-                              ["[INFO ] main org.pytorch.serve.wlm.ModelManager - Model ", "loaded."],
-                              ["stdout MODEL_LOG - Torch worker started"],
-                              ["MODEL_LOG - Transformer model from path /home/", " loaded successfully"],
-                              ["org.pytorch.serve.wlm.WorkerThread - Backend response t"]]
+    # Get container events
+    container_event_ts = get_container_event_ts(args.namespace, pod_name)
+    assert len(container_event_ts) == CONTAINER_EVENT_COUNT
+    print(f"Container Event TS: {container_event_ts}")
+    
+    # Read logs
+    logs = get_pod_logs(args.namespace, pod_name)
+    if not logs:
+        print("No logs available")
+        exit(1)
+        
+    required_substrings_sequence=[["When deploying to production, make sure to limit the set of"],
+                                ["main org.pytorch.serve.snapshot.SnapshotManager", "Started restoring models from snapshot"],
+                                ["Started server process"],
+                                ["[INFO ] main org.pytorch.serve.wlm.ModelManager - Model ", "loaded."],
+                                ["stdout MODEL_LOG - Torch worker started"],
+                                ["MODEL_LOG - Transformer model from path /home/", " loaded successfully"],
+                                ["org.pytorch.serve.wlm.WorkerThread - Backend response t"]]
+    key_events = ["Storage Init", "Kserve Container Init", "First Log", "Load Config", "Start Server Process", "Load Model in Manager", "Start Torch Worker", "Worker Model Load", "Worker Response"]
 
-substring_index = 0
-previous_timestamp = None
-for line in logs:
-    # print(f'Line: {line}')
-    timestamp, event = parse_log_line(line, required_substrings_sequence, substring_index)
-            
-    if timestamp and event:
-        print(f"Timestamp: {timestamp}, Event: {event}")
-        if substring_index > 0:
-            duration = timestamp - previous_timestamp
-            print(f"Duration from previous key event: {duration}")
-        previous_timestamp = timestamp
-        substring_index += 1
-        if substring_index == len(required_substrings_sequence):
-            break
-    # else:
-    #     print("Log line could not be parsed.")
+    # Parse log and get events
+    log_event_ts = []
+    substring_index = 0
+    for line in logs:
+        # print(f'Line: {line}')
+        timestamp, event = parse_log_line(line, required_substrings_sequence, substring_index)
+                
+        if timestamp and event:
+            print(f"Timestamp: {timestamp}, Event: {event}")
+            log_event_ts.append([timestamp, event])
+            substring_index += 1
+            if substring_index == len(required_substrings_sequence):
+                break
+        # else:
+        #     print("Log line could not be parsed.")
+    assert len(log_event_ts) == len(required_substrings_sequence)
+    print(f"Log Event TS: {log_event_ts}")
+    
+    # Gather container ts and log ts
+    gather_event_ts = container_event_ts + log_event_ts
+    res_event_ts = []
+    for i, ke in enumerate(key_events):
+        start = gather_event_ts[i][0].replace(tzinfo=None)
+        end = gather_event_ts[i + 1][0].replace(tzinfo=None)
+        res_event_ts.append([ke, (end - start).total_seconds()])
+    res_event_ts.append(["Total", (gather_event_ts[-1][0].replace(tzinfo=None) - gather_event_ts[0][0].replace(tzinfo=None)).total_seconds()])
+    print(res_event_ts)
+    
+    # Output to file
+    csv_filename = os.path.join(os.path.dirname(os.path.abspath(__file__)), f"../results/init-{args.pod_name}.csv")
+    with open(csv_filename, 'w') as csvfile:
+        csvwriter = csv.writer(csvfile)
+        csvwriter.writerow(['Event', 'Duration'])
+        csvwriter.writerows(res_event_ts)
+        print(f'Successfully written to {csv_filename}')
