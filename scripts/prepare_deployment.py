@@ -26,32 +26,6 @@ def get_model_seriesname(model_basename):
         series_name = series_parts[0]
     return series_name
 
-def download_and_save_model(model_name, save_directory):
-    """
-    Download a pre-trained model from Hugging Face along with its configuration and tokenizer.
-
-    Parameters:
-    model_name (str): The name of the model on Hugging Face.
-    save_directory (str): Directory where the model, config, and tokenizer will be saved.
-    """
-    # Create the save directory if it doesn't exist
-    os.makedirs(save_directory, exist_ok=True)
-    os.makedirs(os.path.join(save_directory, "config"), exist_ok=True)
-    os.makedirs(os.path.join(save_directory, "model-store"), exist_ok=True)
-
-    # Download the configuration
-    config = AutoConfig.from_pretrained(model_name)
-    model = AutoModel.from_pretrained(model_name, config=config)
-    tokenizer = AutoTokenizer.from_pretrained(model_name)
-    # config.save_pretrained(save_directory)
-    
-    # Download the model
-    model.save_pretrained(save_directory, safe_serialization=False)
-
-    # Download the tokenizer
-    tokenizer.save_pretrained(save_directory)
-    print(f"Model, config, and tokenizer saved in {save_directory}")
-    
 def extract_extra_files(save_directory):
     possible_extra_files = ["config.json", "special_tokens_map.json", "tokenizer.json", "tokenizer_config.json", "vocab.txt", "spiece.model"]
     possible_extra_files = [os.path.join(save_directory, x) for x in possible_extra_files]
@@ -165,9 +139,6 @@ def main():
     yaml_dir = os.path.join(os.path.dirname(__file__), f"../yaml/test")
     requirements_file = os.path.join(save_directory, "requirements.txt")
 
-    subprocess.run(f'bash -i -c "source ~/.bashrc && setproxy"', shell=True)
-    download_and_save_model(model_name, save_directory)
-    subprocess.run(f'bash -i -c "source ~/.bashrc && unsetproxy"', shell=True)
     create_mar_file(model_basename, "1.0", os.path.join(save_directory, "pytorch_model.bin"), os.path.join(handler_dir, f"{model_seriesname}_handler.py"),
         extra_files=extract_extra_files(save_directory),
         requirements_file=requirements_file if os.path.exists(requirements_file) else None
