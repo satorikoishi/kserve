@@ -41,16 +41,22 @@ def download_and_save_model(model_name, save_directory):
 
     # Download the configuration
     config = AutoConfig.from_pretrained(model_name)
+    model = AutoModel.from_pretrained(model_name, config=config)
+    tokenizer = AutoTokenizer.from_pretrained(model_name)
     # config.save_pretrained(save_directory)
     
     # Download the model
-    model = AutoModel.from_pretrained(model_name, config=config)
     model.save_pretrained(save_directory, safe_serialization=False)
 
     # Download the tokenizer
-    tokenizer = AutoTokenizer.from_pretrained(model_name)
     tokenizer.save_pretrained(save_directory)
     print(f"Model, config, and tokenizer saved in {save_directory}")
+    
+def extract_extra_files(save_directory):
+    possible_extra_files = ["config.json", "special_tokens_map.json", "tokenizer.json", "tokenizer_config.json", "vocab.txt", "spiece.model"]
+    possible_extra_files = [os.path.join(save_directory, x) for x in possible_extra_files]
+    existing_extra_files = [x for x in possible_extra_files if os.path.exists(x)]
+    return ','.join([x for x in existing_extra_files])
     
 def create_mar_file(model_name, version, model_file, handler_file, extra_files=None, requirements_file=None):
     """
@@ -157,16 +163,17 @@ def main():
     handler_dir = os.path.join(os.path.dirname(__file__), f"../model_archive/handler")
     config_template_dir = os.path.join(os.path.dirname(__file__), f"../model_archive/config")
     yaml_dir = os.path.join(os.path.dirname(__file__), f"../yaml/test")
-    extra_json_files = ["config.json", "special_tokens_map.json", "tokenizer.json", "tokenizer_config.json"]
+    requirements_file = os.path.join(save_directory, "requirements.txt")
 
+    subprocess.run(f'bash -i -c "source ~/.bashrc && setproxy"', shell=True)
     download_and_save_model(model_name, save_directory)
+    subprocess.run(f'bash -i -c "source ~/.bashrc && unsetproxy"', shell=True)
     create_mar_file(model_basename, "1.0", os.path.join(save_directory, "pytorch_model.bin"), os.path.join(handler_dir, f"{model_seriesname}_handler.py"),
-        extra_files=','.join([os.path.join(save_directory, j) for j in extra_json_files]),
+        extra_files=extract_extra_files(save_directory),
+        requirements_file=requirements_file if os.path.exists(requirements_file) else None
     )
     setup_model_store(model_basename, model_seriesname, save_directory, config_template_dir)
     setup_deployment(model_basename, save_directory, yaml_dir)
-    
-    ## TODO: set and unset proxy
-    
+        
 if __name__ == "__main__":
     main()
