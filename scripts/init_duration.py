@@ -117,7 +117,7 @@ def get_pod_logs(namespace, pod_name, container_name="kserve-container", line_li
         log = v1.read_namespaced_pod_log(name=pod_name, namespace=namespace, container=container_name)
         log_lines = log.splitlines()
 
-        return log_lines[:line_limit]
+        return log_lines if len(log_lines) <= line_limit else log_lines[:line_limit]
     except client.rest.ApiException as e:
         print(f"Exception when calling CoreV1Api->read_namespaced_pod_log: {e}")
         return None
@@ -162,6 +162,9 @@ def parse_log_line(log_line, required_substrings_sequence, index):
             return timestamp, event
     return None, None
 
+def search_model_basename(log_line):
+    match = re.search(r'Model Store: /mnt/pvc/(.*?)/model-store', log_line)
+    return match.group(1) if match else None
 
 if __name__ == "__main__":
     # Set up argument parser
@@ -214,8 +217,8 @@ if __name__ == "__main__":
                 break
         # else:
         #     print("Log line could not be parsed.")
-    assert len(log_event_ts) == len(required_substrings_sequence)
     print(f"Log Event TS: {log_event_ts}")
+    assert len(log_event_ts) == len(required_substrings_sequence), f"Log event ts len {len(log_event_ts)}, Subsequence len {len(required_substrings_sequence)}"
     
     # Gather container ts and log ts
     gather_event_ts = container_event_ts + log_event_ts
@@ -228,7 +231,12 @@ if __name__ == "__main__":
     print(res_event_ts)
     
     # Output to file
-    csv_filename = os.path.join(os.path.dirname(os.path.abspath(__file__)), f"../results/init-{args.pod_name}.csv")
+    model_basename = None
+    for line in logs:
+        model_basename = search_model_basename(line)
+        if model_basename:
+            break
+    csv_filename = os.path.join(os.path.dirname(os.path.abspath(__file__)), f"../results/init-{model_basename}.csv")
     with open(csv_filename, 'w') as csvfile:
         csvwriter = csv.writer(csvfile)
         csvwriter.writerow(['Event', 'Duration'])
