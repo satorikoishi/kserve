@@ -98,7 +98,7 @@ def get_container_event_ts(namespace, pod_name):
         print(f"Exception when calling CoreV1Api->read_namespaced_pod: {e}")
         return None
 
-def get_pod_logs(namespace, pod_name, container_name="kserve-container", line_limit=100):
+def get_pod_logs(namespace, pod_name, container_name="kserve-container", line_limit=300):
     """
     Get logs from a specified pod and container in the given namespace.
 
