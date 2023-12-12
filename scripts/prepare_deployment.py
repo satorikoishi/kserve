@@ -138,7 +138,11 @@ def main():
     config_template_dir = os.path.join(os.path.dirname(__file__), f"../model_archive/config")
     yaml_dir = os.path.join(os.path.dirname(__file__), f"../yaml/test")
     requirements_file = os.path.join(save_directory, "requirements.txt")
+    requirements_template_dir = os.path.join(os.path.dirname(__file__), f"../model_archive/requirements")
 
+    if model_seriesname == 'flan-t5':
+        # Need requirements file
+        shutil.copy(os.path.join(requirements_template_dir, f'{model_seriesname}.txt'), requirements_file)
     create_mar_file(model_basename, "1.0", os.path.join(save_directory, "pytorch_model.bin"), os.path.join(handler_dir, f"{model_seriesname}_handler.py"),
         extra_files=extract_extra_files(save_directory),
         requirements_file=requirements_file if os.path.exists(requirements_file) else None

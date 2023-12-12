@@ -69,4 +69,5 @@ hack/istio-*
 model_archive/*
 !/model_archive/handler
 !/model_archive/config
+!/model_archive/requirements
 scripts/setup_config.json
