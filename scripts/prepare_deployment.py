@@ -113,7 +113,7 @@ def setup_model_store(model_basename, model_seriesname, save_directory, config_t
     except IOError as e:
         print(f"Error writing file: {e}")
 
-def setup_deployment(model_basename, save_directory, yaml_dir):
+def setup_deployment(model_basename, model_seriesname, save_directory, yaml_dir):
     # mkdir in storage pod
     config.load_kube_config()
     v1 = client.CoreV1Api()
@@ -133,7 +133,7 @@ def setup_deployment(model_basename, save_directory, yaml_dir):
     template_yaml = os.path.join(yaml_dir, "template.yaml")
     target_yaml = os.path.join(yaml_dir, f"{model_basename}.yaml")
     replacements = {
-        "METADATA_NAME": model_basename,
+        "METADATA_NAME": model_seriesname,
         "STORAGE_DIR": model_basename
     }
     try:
@@ -173,7 +173,7 @@ def main():
         requirements_file=requirements_file if os.path.exists(requirements_file) else None
     )
     setup_model_store(model_basename, model_seriesname, save_directory, config_template_dir)
-    setup_deployment(model_basename, save_directory, yaml_dir)
+    setup_deployment(model_basename, model_seriesname, save_directory, yaml_dir)
         
 if __name__ == "__main__":
     main()

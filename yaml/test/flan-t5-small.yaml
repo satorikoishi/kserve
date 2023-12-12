@@ -1,7 +1,7 @@
 apiVersion: serving.kserve.io/v1beta1
 kind: InferenceService
 metadata:
-  name: "flan-t5-small"
+  name: "flan-t5"
 spec:
   predictor:
     model:
