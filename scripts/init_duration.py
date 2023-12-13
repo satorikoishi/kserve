@@ -198,9 +198,16 @@ if __name__ == "__main__":
                                 ["Started server process"],
                                 ["[INFO ] main org.pytorch.serve.wlm.ModelManager - Model ", "loaded."],
                                 ["stdout MODEL_LOG - Torch worker started"],
+                                ["Worker init settings finished"],
+                                ["Loaded tokenizer from pretrained"],
+                                ["Loaded model from pretrained"],
+                                ["Model loaded on device: "],
                                 ["MODEL_LOG - Transformer model from path /home/", " loaded successfully"],
                                 ["org.pytorch.serve.wlm.WorkerThread - Backend response t"]]
-    key_events = ["Storage Init", "Kserve Container Init", "First Log", "Load Config", "Start Server Process", "Load Model in Manager", "Start Torch Worker", "Worker Model Load", "Worker Response"]
+    key_events = ["Storage Init", "Kserve Container Init", "First Log", "Load Config", 
+                  "Start Server Process", "Load Model in Manager", "Start Torch Worker", 
+                  "Worker Init Setting", "Worker Load Tokenizer", "Worker Load Model", 
+                  "Worker Place Model to Device", "Worker Model Eval", "Worker Response"]
 
     # Parse log and get events
     log_event_ts = []

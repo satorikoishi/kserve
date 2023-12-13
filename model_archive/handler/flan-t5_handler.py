@@ -22,11 +22,15 @@ class T5Handler(BaseHandler):
         device_str = "cuda:" + str(properties.get("gpu_id")) if torch.cuda.is_available() and properties.get("gpu_id") is not None else "cpu"
         logger.info(f"Device: {device_str}")
         self.device = torch.device(device_str)
+        logger.info("Worker init settings finished")
         
         # Load the tokenizer and model
         self.tokenizer = T5Tokenizer.from_pretrained(self.model_dir)
+        logger.info("Loaded tokenizer from pretrained")
         self.model = T5ForConditionalGeneration.from_pretrained(self.model_dir)
+        logger.info("Loaded model from pretrained")
         self.model.to(self.device)
+        logger.info(f"Model loaded on device: {device_str}")
         
         self.model.eval()
         logger.info("Transformer model from path %s loaded successfully", self.model_dir)
