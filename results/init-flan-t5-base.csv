@@ -1,0 +1,15 @@
+Event,Duration
+Storage Init,6.0
+Kserve Container Init,1.0
+First Log,1.114
+Load Config,0.145
+Start Server Process,0.763
+Load Model in Manager,13.964
+Start Torch Worker,1.885
+Worker Init Setting,0.454
+Worker Load Tokenizer,0.08
+Worker Load Model,40.222
+Worker Place Model to Device,0.613
+Worker Model Eval,0.002
+Worker Response,0.005
+Total,66.247
