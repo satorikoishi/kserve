@@ -39,7 +39,8 @@ def download_and_save_model(model_name, save_directory, save_mode="pretrained"):
     # config.save_pretrained(save_directory)
     
     if save_mode == "pretrained":
-        model.save_pretrained(save_directory, safe_serialization=False)
+        # Try safetensor
+        model.save_pretrained(save_directory)
         tokenizer.save_pretrained(save_directory)
         print(f"Model, config, and tokenizer saved in {save_directory}")
     elif save_mode == "ts":
