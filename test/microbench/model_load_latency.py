@@ -102,7 +102,7 @@ def main():
     print(f"Time taken to deserialize pretrained with pickle: {deserialized_time} seconds")
     
     # Serialize and deserialize model with pickle
-    serialized_time, serialized_model = measure_time(serialize_with_pickle, model_from_pretrained)
+    serialized_time, serialized_model = measure_time(serialize_with_pickle, model_from_torch_load)
     print(f"Time taken to serialize torch.load with pickle: {serialized_time} seconds")
 
     deserialized_time, deserialized_model = measure_time(deserialize_with_pickle, serialized_model)

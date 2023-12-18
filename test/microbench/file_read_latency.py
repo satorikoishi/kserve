@@ -1,5 +1,6 @@
 import time
 import argparse
+import torch
 
 def read_from_disk(file_path):
     with open(file_path, 'rb') as file:
@@ -10,6 +11,10 @@ def read_from_disk(file_path):
 
 def read_from_memory(file_data):
     data = file_data
+    
+def load_model_with_torch_load(model_path):
+    model = torch.load(model_path)
+    return model
 
 def measure_time(func, *args):
     start_time = time.time()
@@ -34,6 +39,10 @@ def main():
     # Measure time taken to read from memory
     memory_read_time = measure_time(read_from_memory, file_data)
     print(f"Time taken to read from memory: {memory_read_time} seconds")
-
+    
+    # Measure load time for torch.load()
+    torch_load_time = measure_time(load_model_with_torch_load, args.file_path)
+    print(f"Time taken to load with torch.load(): {torch_load_time} seconds")
+    
 if __name__ == "__main__":
     main()
