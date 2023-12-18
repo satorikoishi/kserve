@@ -100,11 +100,12 @@ def main():
     print("Original model's output:")
     do_inference(model_from_torch_load, model_directory)
     
-    bert_skeleton, bert_weights = extract_tensors(model_from_torch_load)
-    replace_tensors(bert_skeleton, bert_weights)
+    model_skeleton, model_weights = extract_tensors(model_from_torch_load)
+    replace_tensor_time, _ = measure_time(replace_tensors, model_skeleton, model_weights)
+    print(f"Time taken to replace tensor: {replace_tensor_time} seconds")
 
     print("Model output after zero-copy model loading:")
-    do_inference(bert_skeleton, model_directory)
+    do_inference(model_skeleton, model_directory)
 
 if __name__ == "__main__":
     main()
