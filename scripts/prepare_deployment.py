@@ -126,8 +126,9 @@ def setup_deployment(model_basename, model_seriesname, save_directory, yaml_dir)
         print(f"Error writing file: {e}")
 
 def main():
-    parser = argparse.ArgumentParser(description="Download a Hugging Face model with its config and tokenizer.")
+    parser = argparse.ArgumentParser(description="Pack mar file and deploy to pv.")
     parser.add_argument("--model_name", "-m", type=str, help="The name of the model to download.")
+    parser.add_argument("--nogpu", action='store_true', help="Use handler with no gpu.")
     
     args = parser.parse_args()
     model_name = args.model_name
@@ -139,11 +140,13 @@ def main():
     yaml_dir = os.path.join(os.path.dirname(__file__), f"../yaml/test")
     requirements_file = os.path.join(save_directory, "requirements.txt")
     requirements_template_dir = os.path.join(os.path.dirname(__file__), f"../model_archive/requirements")
+    handler_fname=f"{model_seriesname}_handler_no_gpu.py" if args.nogpu else f"{model_seriesname}_handler.py"
 
     if model_seriesname == 'flan-t5':
         # Need requirements file
         shutil.copy(os.path.join(requirements_template_dir, f'{model_seriesname}.txt'), requirements_file)
-    create_mar_file(model_basename, "1.0", os.path.join(save_directory, "model.safetensors"), os.path.join(handler_dir, f"{model_seriesname}_handler.py"),
+    create_mar_file(model_basename, "1.0", os.path.join(save_directory, "model.safetensors"), 
+                    os.path.join(handler_dir, handler_fname),
         extra_files=extract_extra_files(save_directory),
         requirements_file=requirements_file if os.path.exists(requirements_file) else None
     )
