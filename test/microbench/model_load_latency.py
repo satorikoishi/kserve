@@ -40,6 +40,24 @@ def load_model_from_memory_mapped_file(mmap_file_path):
         mmapped_file.close()
         return model
 
+def create_memory_mapped_model_file(filename):
+    with open(filename, 'r+b') as f:
+        mm = mmap.mmap(f.fileno(), 0, access=mmap.ACCESS_READ)
+        return mm
+    
+def load_model_from_memory_map(mm):
+    buffer = io.BytesIO(mm.read())
+    model = torch.load(buffer)
+    return model
+
+def read_buffer_from_mmap(mm):
+    buffer = io.BytesIO(mm.read())
+    return buffer
+
+def load_model_from_buffer(buffer):
+    model = torch.load(buffer)
+    return model
+
 def load_model_multiple_times_from_memory_mapped_file(mmap_file_path, num_iterations=5):
     load_times = []
     for _ in range(num_iterations):
@@ -86,9 +104,23 @@ def main():
     memory_access_time_torch_load, _ = measure_time(lambda m: m, model_from_torch_load)
     print(f"Time taken to access model already in memory (torch.load): {memory_access_time_torch_load} seconds")
 
+    # # Measure load time from memory-mapped file
+    # mmap_load_time, model_from_mmap = measure_time(load_model_from_memory_mapped_file, model_path)
+    # print(f"Time taken to load from memory-mapped file: {mmap_load_time} seconds")
+    
     # Measure load time from memory-mapped file
-    mmap_load_time, model_from_mmap = measure_time(load_model_from_memory_mapped_file, model_path)
-    print(f"Time taken to load from memory-mapped file: {mmap_load_time} seconds")
+    mmap_create_time, mm = measure_time(create_memory_mapped_model_file, model_path)
+    print(f"Time taken to create memory-mapped file: {mmap_create_time} seconds")
+    
+    # Measure load time from memory-mapped file
+    read_buffer_time, buffer = measure_time(read_buffer_from_mmap, mm)
+    print(f"Time taken to read from memory-mapped file: {read_buffer_time} seconds")
+    
+    # Measure load time from memory-mapped file
+    mmap_load_time, model_from_mmap = measure_time(load_model_from_buffer, buffer)
+    print(f"Time taken to load from memory-mapped buffer: {mmap_load_time} seconds")
+    
+    mm.close()
     
     # # Measure load time from memory-mapped file multiple times
     # mmap_load_times = load_model_multiple_times_from_memory_mapped_file(model_path)
