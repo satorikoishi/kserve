@@ -8,15 +8,25 @@ import pandas as pd
 import urllib
 import argparse
 from transformers import AutoTokenizer
+import pickle
 
 import copy
 import os
+import sys
 
 def measure_time(func, *args):
     start_time = time.time()
     result = func(*args)
     end_time = time.time()
     return end_time - start_time, result
+
+def serialize_with_pickle(model):
+    serialized_model = pickle.dumps(model)
+    return serialized_model
+
+def deserialize_with_pickle(serialized_model):
+    model = pickle.loads(serialized_model)
+    return model
 
 def load_model_with_torch_load(model_path):
     model = torch.load(model_path)
@@ -100,12 +110,38 @@ def main():
     print("Original model's output:")
     do_inference(model_from_torch_load, model_directory)
     
+    # Replace tensor
     model_skeleton, model_weights = extract_tensors(model_from_torch_load)
+    print(f"Model size: {sys.getsizeof(model_skeleton)}, Weight size: {sys.getsizeof(model_weights)}")
+    
     replace_tensor_time, _ = measure_time(replace_tensors, model_skeleton, model_weights)
     print(f"Time taken to replace tensor: {replace_tensor_time} seconds")
-
+    
     print("Model output after zero-copy model loading:")
     do_inference(model_skeleton, model_directory)
+
+    # Deserialize
+    serialized_time, serialized_model = measure_time(serialize_with_pickle, model_from_torch_load)
+    print(f"Time taken to serialize torch.load with pickle: {serialized_time} seconds")
+
+    deserialized_time, deserialized_model = measure_time(deserialize_with_pickle, serialized_model)
+    print(f"Time taken to deserialize torch.load with pickle: {deserialized_time} seconds")
+
+    print("Model output after deserialization:")
+    do_inference(deserialized_model, model_directory)
+    
+    # Deserialize skeleton only
+    serialized_skeleton_time, serialized_skeleton_model = measure_time(serialize_with_pickle, model_skeleton)
+    print(f"Time taken to serialize skeleton: {serialized_skeleton_time} seconds")
+
+    deserialized_skeleton_time, deserialized_skeleton_model = measure_time(deserialize_with_pickle, serialized_skeleton_model)
+    print(f"Time taken to deserialize skeleton: {deserialized_skeleton_time} seconds")
+    
+    replace_tensor_time_second, _ = measure_time(replace_tensors, deserialized_skeleton_model, model_weights)
+    print(f"Time taken to replace tensor: {replace_tensor_time_second} seconds")
+
+    print("Model output after skeleton deserialization:")
+    do_inference(deserialized_skeleton_model, model_directory)
 
 if __name__ == "__main__":
     main()
