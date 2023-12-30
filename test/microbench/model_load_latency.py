@@ -2,16 +2,35 @@ import torch
 import time
 import argparse
 import mmap
-from transformers import AutoModel
+from transformers import AutoModel, T5Model, AutoConfig
 import io
 import pickle
 import sys
+
+def model_identical(model_1, model_2):
+    # Compare state dictionaries
+    state_dict_1 = model_1.state_dict()
+    state_dict_2 = model_2.state_dict()
+
+    # Check if the models are identical
+    models_identical = state_dict_1.keys() == state_dict_2.keys() and \
+                    all(torch.equal(state_dict_1[key], state_dict_2[key]) for key in state_dict_1)
+
+    print("Models are identical:", models_identical)
 
 def measure_time(func, *args):
     start_time = time.time()
     result = func(*args)
     end_time = time.time()
     return end_time - start_time, result
+
+def measure_time_print(msg, func, *args):
+    start_time = time.time()
+    result = func(*args)
+    end_time = time.time()
+    duration = end_time - start_time
+    print(f"{msg}: {duration} seconds")
+    return result
 
 def serialize_with_pickle(model):
     serialized_model = pickle.dumps(model)
@@ -23,6 +42,13 @@ def deserialize_with_pickle(serialized_model):
 
 def load_model_with_torch_load(model_path):
     model = torch.load(model_path)
+    return model
+
+def load_model_state_dict(model_directory):
+    config = measure_time_print("Init config", AutoConfig.from_pretrained, model_directory)
+    model = measure_time_print("Init model class", lambda: T5Model(config))
+    state_dict = measure_time_print("State dict load", torch.load, f"{model_directory}/model.sd")
+    _ = measure_time_print("Model load state dict", model.load_state_dict, state_dict)
     return model
 
 def load_model_with_from_pretrained(model_directory):
@@ -87,6 +113,13 @@ def main():
     # Measure load time for torch.load()
     torch_load_time, model_from_torch_load = measure_time(load_model_with_torch_load, model_path)
     print(f"Time taken to load with torch.load(): {torch_load_time} seconds")
+    
+    # Measure load time for loading state dict
+    model_from_state_dict = load_model_state_dict(model_directory)
+
+    # Verify they are identical
+    model_identical(model_from_pretrained, model_from_torch_load)
+    model_identical(model_from_state_dict, model_from_torch_load)
     
     # Compare model
     pretrained_model_type = type(model_from_pretrained)
