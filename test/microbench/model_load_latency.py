@@ -3,6 +3,7 @@ import time
 import argparse
 import mmap
 from transformers import AutoModel, T5Model, AutoConfig
+from safetensors.torch import load_file
 import io
 import pickle
 import sys
@@ -42,6 +43,10 @@ def deserialize_with_pickle(serialized_model):
 
 def load_model_with_torch_load(model_path):
     model = torch.load(model_path)
+    return model
+
+def load_model_with_safetensor(model_directory):
+    model = load_file(f"{model_directory}/model.safetensors")
     return model
 
 def load_model_state_dict(model_directory):
@@ -96,6 +101,11 @@ def load_model_multiple_times_from_memory_mapped_file(mmap_file_path, num_iterat
         load_times.append(end_time - start_time)
     return load_times
 
+def print_model_meta_info(model, type_str):
+    model_type = type(model)
+    model_size = sys.getsizeof(model)
+    print(f"{type_str} type: {model_type}, size: {model_size}.")
+
 def main():
     parser = argparse.ArgumentParser(description="Compare model loading times.")
     parser.add_argument("save_directory", type=str, help="Directory where the models are saved")
@@ -116,18 +126,20 @@ def main():
     
     # Measure load time for loading state dict
     model_from_state_dict = load_model_state_dict(model_directory)
+    
+    # Measure load time for safetensors
+    st_load_time, model_from_safetensor = measure_time(load_model_with_safetensor, model_directory)
+    print(f"Time taken to load with safetensor: {st_load_time} seconds")
 
+    # Compare model
+    print_model_meta_info(model_from_pretrained, "Pretrained")
+    print_model_meta_info(model_from_torch_load, "Torch load ")
+    print_model_meta_info(model_from_safetensor, "Safetensor ")
+    
     # Verify they are identical
     model_identical(model_from_pretrained, model_from_torch_load)
     model_identical(model_from_state_dict, model_from_torch_load)
-    
-    # Compare model
-    pretrained_model_type = type(model_from_pretrained)
-    pretrained_model_size = sys.getsizeof(model_from_pretrained)
-    torchload_model_type = type(model_from_torch_load)
-    torchload_model_size = sys.getsizeof(model_from_torch_load)
-    print(f"Pretrained type: {pretrained_model_type}, size: {pretrained_model_size}.")
-    print(f"Torchload type: {torchload_model_type}, size: {torchload_model_size}.")
+    # model_identical(model_from_safetensor, model_from_torch_load)
     
     # Measure access time for model already in memory (from_pretrained)
     memory_access_time_pretrained, _ = measure_time(lambda m: m, model_from_pretrained)
