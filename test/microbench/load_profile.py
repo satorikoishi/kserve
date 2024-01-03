@@ -20,6 +20,10 @@ def load_model_with_torch_load(model_directory):
     model = torch.load(f"{model_directory}/model.pt")
     return model
 
+def load_model_with_from_pretrained(model_directory):
+    model = AutoModel.from_pretrained(model_directory)
+    return model
+
 def profile_model_loading(load_function, model_directory):
     """Profiles a given model loading function."""
     profiler = cProfile.Profile()
@@ -47,6 +51,11 @@ def main():
 
     print("\nProfiling load_model_with_torch_load...")
     profile_model_loading(load_model_with_torch_load, args.save_directory)
+    
+    print("---------------------------------- Splitter ----------------------------------\n\n\n")
+    
+    print("\nProfiling load_model_with_pretrained...")
+    profile_model_loading(load_model_with_from_pretrained, args.save_directory)
 
     print("Model loading profiling completed.")
     
