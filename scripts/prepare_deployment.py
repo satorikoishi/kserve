@@ -27,7 +27,8 @@ def get_model_seriesname(model_basename):
     return series_name
 
 def extract_extra_files(save_directory):
-    possible_extra_files = ["config.json", "special_tokens_map.json", "tokenizer.json", "tokenizer_config.json", "vocab.txt", "spiece.model"]
+    possible_extra_files = ["config.json", "special_tokens_map.json", "tokenizer.json", "tokenizer_config.json", "vocab.txt", "spiece.model"
+                            , "model.pt", "model.sd"]
     possible_extra_files = [os.path.join(save_directory, x) for x in possible_extra_files]
     existing_extra_files = [x for x in possible_extra_files if os.path.exists(x)]
     return ','.join([x for x in existing_extra_files])
