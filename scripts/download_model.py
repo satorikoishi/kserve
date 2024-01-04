@@ -1,6 +1,6 @@
 import os
 import argparse
-from transformers import AutoModel, AutoConfig, AutoTokenizer
+from transformers import AutoModel, AutoConfig, AutoTokenizer, T5ForConditionalGeneration
 import subprocess
 import shutil
 from kubernetes import client, config
@@ -60,8 +60,9 @@ def download_and_save_model(model_name, save_directory, save_mode="pretrained"):
         # attention_mask = inputs["attention_mask"].to(device)
         # traced_model = torch.jit.trace(model, (input_ids, attention_mask), strict=False)
         # torch.jit.save(traced_model, os.path.join(save_directory, "traced_model.pt"))
+        model = T5ForConditionalGeneration.from_pretrained(model_name, config=config)
         torch.save(model, os.path.join(save_directory, "model.pt"))
-        torch.save(model.state_dict(), os.path.join(save_directory, "model.sd"))
+        # torch.save(model.state_dict(), os.path.join(save_directory, "model.sd"))
         print(f"TS Model saved in {save_directory}")
     else:
         assert False, f"Unknown save mode: {save_mode}"

@@ -16,7 +16,7 @@ def get_model_basename(model_name):
     Returns:
     str: The basename of the model name.
     """
-    return model_name.split("/")[-1]
+    return model_name.split("/")[-1] if "/" in model_name else model_name
 
 def get_model_seriesname(model_basename):
     series_parts = model_basename.split('-')
@@ -27,8 +27,7 @@ def get_model_seriesname(model_basename):
     return series_name
 
 def extract_extra_files(save_directory):
-    possible_extra_files = ["config.json", "special_tokens_map.json", "tokenizer.json", "tokenizer_config.json", "vocab.txt", "spiece.model"
-                            , "model.pt", "model.sd"]
+    possible_extra_files = ["config.json", "special_tokens_map.json", "tokenizer.json", "tokenizer_config.json", "vocab.txt", "spiece.model"]
     possible_extra_files = [os.path.join(save_directory, x) for x in possible_extra_files]
     existing_extra_files = [x for x in possible_extra_files if os.path.exists(x)]
     return ','.join([x for x in existing_extra_files])
@@ -130,6 +129,7 @@ def main():
     parser = argparse.ArgumentParser(description="Pack mar file and deploy to pv.")
     parser.add_argument("--model_name", "-m", type=str, help="The name of the model to download.")
     parser.add_argument("--nogpu", action='store_true', help="Use handler with no gpu.")
+    parser.add_argument("--tl", action='store_true', help="Use torch load pt file.")
     
     args = parser.parse_args()
     model_name = args.model_name
@@ -141,12 +141,18 @@ def main():
     yaml_dir = os.path.join(os.path.dirname(__file__), f"../yaml/test")
     requirements_file = os.path.join(save_directory, "requirements.txt")
     requirements_template_dir = os.path.join(os.path.dirname(__file__), f"../model_archive/requirements")
-    handler_fname=f"{model_seriesname}_handler_no_gpu.py" if args.nogpu else f"{model_seriesname}_handler.py"
+    model_fname = "model.pt" if args.tl else "model.safetensors"
+    if args.tl:
+        handler_fname=f"{model_seriesname}_handler_tl.py"
+    elif args.nogpu:
+        handler_fname=f"{model_seriesname}_handler_no_gpu.py"
+    else:
+        handler_fname=f"{model_seriesname}_handler.py"
 
     if model_seriesname == 'flan-t5':
         # Need requirements file
         shutil.copy(os.path.join(requirements_template_dir, f'{model_seriesname}.txt'), requirements_file)
-    create_mar_file(model_basename, "1.0", os.path.join(save_directory, "model.safetensors"), 
+    create_mar_file(model_basename, "1.0", os.path.join(save_directory, model_fname), 
                     os.path.join(handler_dir, handler_fname),
         extra_files=extract_extra_files(save_directory),
         requirements_file=requirements_file if os.path.exists(requirements_file) else None
