@@ -32,7 +32,7 @@ def extract_extra_files(save_directory):
     existing_extra_files = [x for x in possible_extra_files if os.path.exists(x)]
     return ','.join([x for x in existing_extra_files])
     
-def create_mar_file(model_name, version, model_file, handler_file, extra_files=None, requirements_file=None):
+def create_mar_file(model_name, version, model_file, handler_file, extra_files=None, requirements_file=None, noarch=False):
     """
     Create a .mar file for TorchServe.
 
@@ -57,20 +57,28 @@ def create_mar_file(model_name, version, model_file, handler_file, extra_files=N
     
     if requirements_file:
         mar_command.extend(["--requirements-file", requirements_file])
+    
+    if noarch:
+        mar_command.extend(["--archive-format", "no-archive"])
 
     print(f"Running {mar_command} to generate .mar file")
     # Create the .mar file
     subprocess.run(mar_command)
 
-def setup_model_store(model_basename, model_seriesname, save_directory, config_template_dir):
-    # Move mar to model store
-    shutil.move(f'{model_basename}.mar', os.path.join(save_directory, f'model-store/{model_basename}.mar'))
+def setup_model_store(model_basename, model_seriesname, save_directory, config_template_dir, noarch=False):
+    # Reset model store
+    model_store_path = os.path.join(save_directory, "model-store")
+    shutil.rmtree(model_store_path)
+    os.makedirs(model_store_path)
+    # Move mar or dir to model store
+    model_file = f'{model_basename}' if noarch else f'{model_basename}.mar'
+    shutil.move(model_file, os.path.join(save_directory, f'model-store/{model_file}'))
     # Generate config.properties from template
-    template_config = os.path.join(config_template_dir, "config.properties")
+    template_config = os.path.join(config_template_dir, "noarch-config.properties" if noarch else "config.properties")
     target_config = os.path.join(save_directory, 'config/config.properties')
     replacements = {
         "MODEL_NAME": model_seriesname,
-        "MAR_FILE_NAME": f'{model_basename}.mar'
+        "MAR_FILE_NAME": model_file
     }
     try:
         with open(template_config, 'r') as file:
@@ -102,7 +110,8 @@ def setup_deployment(model_basename, model_seriesname, save_directory, yaml_dir)
         print(f"Exception when executing command in pod: {e}")
     # Copy config and mar
     subprocess.run(f"kubectl cp {save_directory}/config/config.properties model-store-pod:/pv/{model_basename}/config", shell=True)
-    subprocess.run(f"kubectl cp {save_directory}/model-store/{model_basename}.mar model-store-pod:/pv/{model_basename}/model-store", shell=True)
+    subprocess.run(f"kubectl exec model-store-pod -- rm -r /pv/{model_basename}/model-store", shell=True)
+    subprocess.run(f"kubectl cp {save_directory}/model-store model-store-pod:/pv/{model_basename}/model-store", shell=True)
     # Generate yaml from template
     template_yaml = os.path.join(yaml_dir, "template.yaml")
     target_yaml = os.path.join(yaml_dir, f"{model_basename}.yaml")
@@ -130,6 +139,7 @@ def main():
     parser.add_argument("--model_name", "-m", type=str, help="The name of the model to download.")
     parser.add_argument("--nogpu", action='store_true', help="Use handler with no gpu.")
     parser.add_argument("--tl", action='store_true', help="Use torch load pt file.")
+    parser.add_argument("--noarch", action='store_true', help="Use no-archive instead of .mar file.")
     
     args = parser.parse_args()
     model_name = args.model_name
@@ -155,9 +165,10 @@ def main():
     create_mar_file(model_basename, "1.0", os.path.join(save_directory, model_fname), 
                     os.path.join(handler_dir, handler_fname),
         extra_files=extract_extra_files(save_directory),
-        requirements_file=requirements_file if os.path.exists(requirements_file) else None
+        requirements_file=requirements_file if os.path.exists(requirements_file) else None,
+        noarch=args.noarch
     )
-    setup_model_store(model_basename, model_seriesname, save_directory, config_template_dir)
+    setup_model_store(model_basename, model_seriesname, save_directory, config_template_dir, args.noarch)
     setup_deployment(model_basename, model_seriesname, save_directory, yaml_dir)
         
 if __name__ == "__main__":
