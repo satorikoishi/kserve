@@ -159,9 +159,9 @@ def main():
     else:
         handler_fname=f"{model_seriesname}_handler.py"
 
-    if model_seriesname == 'flan-t5':
-        # Need requirements file
-        shutil.copy(os.path.join(requirements_template_dir, f'{model_seriesname}.txt'), requirements_file)
+    # if model_seriesname == 'flan-t5':
+    #     # Need requirements file
+    #     shutil.copy(os.path.join(requirements_template_dir, f'{model_seriesname}.txt'), requirements_file)
     create_mar_file(model_basename, "1.0", os.path.join(save_directory, model_fname), 
                     os.path.join(handler_dir, handler_fname),
         extra_files=extract_extra_files(save_directory),
