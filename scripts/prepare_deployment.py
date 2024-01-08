@@ -74,7 +74,7 @@ def setup_model_store(model_basename, model_seriesname, save_directory, config_t
     model_file = f'{model_basename}' if noarch else f'{model_basename}.mar'
     shutil.move(model_file, os.path.join(save_directory, f'model-store/{model_file}'))
     # Generate config.properties from template
-    template_config = os.path.join(config_template_dir, "noarch-config.properties" if noarch else "config.properties")
+    template_config = os.path.join(config_template_dir, "config.properties")
     target_config = os.path.join(save_directory, 'config/config.properties')
     replacements = {
         "MODEL_NAME": model_seriesname,
