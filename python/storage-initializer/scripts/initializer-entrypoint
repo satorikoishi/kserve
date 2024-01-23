@@ -1,8 +1,11 @@
 #!/usr/bin/env python3
 import sys
 import logging
-
+from datetime import datetime
 from kserve.storage import Storage
+
+# Start time
+start_time = datetime.now()
 
 if len(sys.argv) != 3:
     print("Usage: initializer-entrypoint src_uri dest_path")
@@ -11,5 +14,19 @@ if len(sys.argv) != 3:
 src_uri = sys.argv[1]
 dest_path = sys.argv[2]
 
-logging.info("Initializing, args: src_uri [%s] dest_path[ [%s]" % (src_uri, dest_path))
+logging.info("Initializing, args: src_uri [%s] dest_path [%s]" % (src_uri, dest_path))
+
+# Perform the download
 Storage.download(src_uri, dest_path)
+
+# End time
+end_time = datetime.now()
+
+# Calculate duration
+duration = end_time - start_time
+
+logging.info(f"Start time: {start_time}")
+logging.info(f"End time: {end_time}")
+logging.info(f"Duration: {duration}")
+
+logging.shutdown()
