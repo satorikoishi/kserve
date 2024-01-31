@@ -1,0 +1,6 @@
+Event,Duration
+Storage Init,6.0
+Kserve Container Init,1.0
+First Log,0.869
+Worker Response,4.256
+Total,12.125
