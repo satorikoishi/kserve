@@ -1,4 +1,5 @@
 import os
+import json
 import argparse
 from transformers import AutoModel, AutoConfig, AutoTokenizer
 import subprocess
@@ -26,8 +27,27 @@ def get_model_seriesname(model_basename):
         series_name = series_parts[0]
     return series_name
 
+def prepare_setup_config(setup_config_file_path, args):
+    print(f"Preparing setup_config file: {setup_config_file_path}")
+    if os.path.exists(setup_config_file_path):
+        # Open and read the existing configuration file
+        with open(setup_config_file_path, 'r') as file:
+            config = json.load(file)
+    else:
+        # If the file does not exist, create a default configuration
+        config = {}
+    # torchload setup
+    if args.tl:
+        config["use_torchload"] = True
+    else:
+        config["use_torchload"] = False
+    # TODO: gpu, ... setup
+    # Write the modified or new configuration back to the file
+    with open(setup_config_file_path, 'w') as file:
+        json.dump(config, file, indent=4)
+
 def extract_extra_files(save_directory):
-    possible_extra_files = ["config.json", "special_tokens_map.json", "tokenizer.json", "tokenizer_config.json", "vocab.txt", "spiece.model"]
+    possible_extra_files = ["config.json", "special_tokens_map.json", "tokenizer.json", "tokenizer_config.json", "vocab.txt", "spiece.model", "setup_config.json"]
     possible_extra_files = [os.path.join(save_directory, x) for x in possible_extra_files]
     existing_extra_files = [x for x in possible_extra_files if os.path.exists(x)]
     return ','.join([x for x in existing_extra_files])
@@ -152,16 +172,20 @@ def main():
     requirements_file = os.path.join(save_directory, "requirements.txt")
     requirements_template_dir = os.path.join(os.path.dirname(__file__), f"../model_archive/requirements")
     model_fname = "model.pt" if args.tl else "model.safetensors"
-    if args.tl:
-        handler_fname=f"{model_seriesname}_handler_tl.py"
-    elif args.nogpu:
-        handler_fname=f"{model_seriesname}_handler_no_gpu.py"
-    else:
-        handler_fname=f"{model_seriesname}_handler.py"
+    handler_fname=f"{model_seriesname}_handler.py"
+    
+    # if args.tl:
+    #     handler_fname=f"{model_seriesname}_handler_tl.py"
+    # elif args.nogpu:
+    #     handler_fname=f"{model_seriesname}_handler_no_gpu.py"
+    # else:
+    #     handler_fname=f"{model_seriesname}_handler.py"
 
     # if model_seriesname == 'flan-t5':
     #     # Need requirements file
     #     shutil.copy(os.path.join(requirements_template_dir, f'{model_seriesname}.txt'), requirements_file)
+    
+    prepare_setup_config(os.path.join(save_directory, "setup_config.json"), args)
     create_mar_file(model_basename, "1.0", os.path.join(save_directory, model_fname), 
                     os.path.join(handler_dir, handler_fname),
         extra_files=extract_extra_files(save_directory),
@@ -170,6 +194,6 @@ def main():
     )
     setup_model_store(model_basename, model_seriesname, save_directory, config_template_dir, args.noarch)
     setup_deployment(model_basename, model_seriesname, save_directory, yaml_dir)
-        
+
 if __name__ == "__main__":
     main()

@@ -49,8 +49,8 @@ class TransformersSeqClassifierHandler(BaseHandler, ABC):
         )
         # Loading the model and tokenizer from checkpoint and config files based on the user's choice of mode
         # further setup config can be added.
-        # with zipfile.ZipFile(model_dir + "/model.zip", "r") as zip_ref:
-        #     zip_ref.extractall(model_dir + "/model")
+        with zipfile.ZipFile(model_dir + "/model.zip", "r") as zip_ref:
+            zip_ref.extractall(model_dir + "/model")
 
         # read configs for the mode, model_name, etc. from setup_config.json
         setup_config_path = os.path.join(model_dir, "setup_config.json")
@@ -61,7 +61,7 @@ class TransformersSeqClassifierHandler(BaseHandler, ABC):
             logger.warning("Missing the setup_config.json file.")
 
         self.model = BloomForCausalLM.from_pretrained(
-            model_dir,
+            model_dir + "/model",
             revision=self.setup_config["revision"],
             max_memory={
                 int(key) if key.isnumeric() else key: value
@@ -75,7 +75,7 @@ class TransformersSeqClassifierHandler(BaseHandler, ABC):
         )
 
         self.tokenizer = BloomTokenizerFast.from_pretrained(
-            model_dir, return_tensors="pt"
+            model_dir + "/model", return_tensors="pt"
         )
 
         self.model.eval()

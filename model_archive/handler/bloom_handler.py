@@ -49,8 +49,8 @@ class TransformersSeqClassifierHandler(BaseHandler, ABC):
         )
         # Loading the model and tokenizer from checkpoint and config files based on the user's choice of mode
         # further setup config can be added.
-        with zipfile.ZipFile(model_dir + "/model.zip", "r") as zip_ref:
-            zip_ref.extractall(model_dir + "/model")
+        # with zipfile.ZipFile(model_dir + "/model.zip", "r") as zip_ref:
+        #     zip_ref.extractall(model_dir + "/model")
 
         # read configs for the mode, model_name, etc. from setup_config.json
         setup_config_path = os.path.join(model_dir, "setup_config.json")
@@ -60,22 +60,26 @@ class TransformersSeqClassifierHandler(BaseHandler, ABC):
         else:
             logger.warning("Missing the setup_config.json file.")
 
-        self.model = BloomForCausalLM.from_pretrained(
-            model_dir + "/model",
-            revision=self.setup_config["revision"],
-            max_memory={
-                int(key) if key.isnumeric() else key: value
-                for key, value in self.setup_config["max_memory"].items()
-            },
-            low_cpu_mem_usage=self.setup_config["low_cpu_mem_usage"],
-            device_map=self.setup_config["device_map"],
-            offload_folder=self.setup_config["offload_folder"],
-            offload_state_dict=self.setup_config["offload_state_dict"],
-            torch_dtype=TORCH_DTYPES[self.setup_config["torch_dtype"]],
-        )
+        if self.setup_config["use_torchload"]:
+            self.model = torch.load(f"{model_dir}/model.pt")
+            self.model.to(self.device)
+        else:
+            self.model = BloomForCausalLM.from_pretrained(
+                model_dir,
+                revision=self.setup_config["revision"],
+                max_memory={
+                    int(key) if key.isnumeric() else key: value
+                    for key, value in self.setup_config["max_memory"].items()
+                },
+                low_cpu_mem_usage=self.setup_config["low_cpu_mem_usage"],
+                device_map=self.setup_config["device_map"],
+                offload_folder=self.setup_config["offload_folder"],
+                offload_state_dict=self.setup_config["offload_state_dict"],
+                torch_dtype=TORCH_DTYPES[self.setup_config["torch_dtype"]],
+            )
 
         self.tokenizer = BloomTokenizerFast.from_pretrained(
-            model_dir + "/model", return_tensors="pt"
+            model_dir, return_tensors="pt"
         )
 
         self.model.eval()

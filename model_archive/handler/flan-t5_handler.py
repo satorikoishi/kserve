@@ -1,8 +1,10 @@
 import transformers
 import torch
+import json
 from transformers import T5Tokenizer, T5ForConditionalGeneration
 from ts.torch_handler.base_handler import BaseHandler
 import logging
+import os
 
 logger = logging.getLogger(__name__)
 logger.info("Transformers version %s", transformers.__version__)
@@ -24,11 +26,22 @@ class T5Handler(BaseHandler):
         self.device = torch.device(device_str)
         logger.info("Worker init settings finished")
         
+        setup_config_path = os.path.join(self.model_dir, "setup_config.json")
+        if os.path.isfile(setup_config_path):
+            with open(setup_config_path) as setup_config_file:
+                self.setup_config = json.load(setup_config_file)
+        else:
+            logger.warning("Missing the setup_config.json file.")
+            
         # Load the tokenizer and model
         self.tokenizer = T5Tokenizer.from_pretrained(self.model_dir)
         logger.info("Loaded tokenizer from pretrained")
-        self.model = T5ForConditionalGeneration.from_pretrained(self.model_dir)
-        logger.info("Loaded model from pretrained")
+        if self.setup_config["use_torchload"]:
+            self.model = torch.load(f"{self.model_dir}/model.pt")
+            logger.info("Loaded model from pretrained (from torch load)")
+        else:
+            self.model = T5ForConditionalGeneration.from_pretrained(self.model_dir)
+            logger.info("Loaded model from pretrained")
         self.model.to(self.device)
         logger.info(f"Model loaded on device: {device_str}")
         

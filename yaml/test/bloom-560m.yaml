@@ -1,19 +1,19 @@
 apiVersion: serving.kserve.io/v1beta1
 kind: InferenceService
 metadata:
-  name: "bloom560m"
+  name: "bloom"
 spec:
   predictor:
     model:
       modelFormat:
         name: pytorch
-      storageUri: pvc://task-pv-claim/bloom560m
+      storageUri: pvc://task-pv-claim/bloom-560m
       resources:
         limits:
           cpu: "2"
-          memory: 64Gi
+          memory: 128Gi
           nvidia.com/gpu: "1"
         requests:
           cpu: "2"
-          memory: 64Gi
+          memory: 128Gi
           nvidia.com/gpu: "1"
