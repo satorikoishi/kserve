@@ -75,8 +75,9 @@ def create_mar_file(model_name, version, model_file, handler_file, extra_files=N
     if extra_files:
         mar_command.extend(["--extra-files", extra_files])
     
-    if requirements_file:
-        mar_command.extend(["--requirements-file", requirements_file])
+    # BAN install dep
+    # if requirements_file:
+    #     mar_command.extend(["--requirements-file", requirements_file])
     
     if noarch:
         mar_command.extend(["--archive-format", "no-archive"])
