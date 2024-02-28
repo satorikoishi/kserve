@@ -22,7 +22,12 @@ def get_model_basename(model_name):
 def get_model_seriesname(model_basename):
     series_parts = model_basename.split('-')
     if len(series_parts) > 1:
-        series_name = '-'.join(series_parts[:-1])
+        if 't5' in model_basename:
+            series_name = '-'.join(series_parts[:-1])
+        elif 'bert' in model_basename:
+            series_name = series_parts[0]
+        else:
+            assert False, f"Unknown model {model_basename}, need further check"
     else:
         series_name = series_parts[0]
     return series_name
