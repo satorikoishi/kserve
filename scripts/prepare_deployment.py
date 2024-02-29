@@ -21,7 +21,7 @@ def get_model_basename(model_name):
 
 def get_model_seriesname(model_basename):
     series_parts = model_basename.split('-')
-    if len(series_parts) > 1:
+    if len(series_parts) > 2:
         if 't5' in model_basename:
             series_name = '-'.join(series_parts[:-1])
         elif 'bert' in model_basename:
@@ -80,9 +80,9 @@ def create_mar_file(model_name, version, model_file, handler_file, extra_files=N
     if extra_files:
         mar_command.extend(["--extra-files", extra_files])
     
-    # BAN install dep
-    # if requirements_file:
-    #     mar_command.extend(["--requirements-file", requirements_file])
+    # Only mar file needs install dep
+    if requirements_file and not noarch:
+        mar_command.extend(["--requirements-file", requirements_file])
     
     if noarch:
         mar_command.extend(["--archive-format", "no-archive"])
@@ -187,9 +187,9 @@ def main():
     # else:
     #     handler_fname=f"{model_seriesname}_handler.py"
 
-    # if model_seriesname == 'flan-t5':
-    #     # Need requirements file
-    #     shutil.copy(os.path.join(requirements_template_dir, f'{model_seriesname}.txt'), requirements_file)
+    if model_seriesname in ('flan-t5', 'bloom'):
+        # Need requirements file
+        shutil.copy(os.path.join(requirements_template_dir, f'{model_seriesname}.txt'), requirements_file)
     
     prepare_setup_config(os.path.join(save_directory, "setup_config.json"), args)
     create_mar_file(model_basename, "1.0", os.path.join(save_directory, model_fname), 
@@ -199,6 +199,9 @@ def main():
         noarch=args.noarch
     )
     setup_model_store(model_basename, model_seriesname, save_directory, config_template_dir, args.noarch)
+    # Split mar and noarch
+    if not args.noarch:
+        model_basename += "-mar"
     setup_deployment(model_basename, model_seriesname, save_directory, yaml_dir)
 
 if __name__ == "__main__":
