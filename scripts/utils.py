@@ -1,5 +1,8 @@
 import subprocess
 import time
+from datetime import datetime, timezone
+from kubernetes import client, config
+import re
 
 def get_model_basename(model_name):
     """
@@ -59,3 +62,69 @@ def prepare_deployment(model_name, runtime_config):
     else:
         assert False, f"Unknown runtime config: {runtime_config}"
     subprocess.run(cmd, shell=True)
+    
+def find_pod_by_partial_name(namespace, partial_pod_name):
+    """
+    Find a pod in the specified namespace that matches the partial name pattern.
+
+    Args:
+    namespace (str): The namespace in which to search for the pod.
+    partial_pod_name (str): A regex pattern that matches the partial name of the pod.
+
+    Returns:
+    str: The name of the first pod that matches the pattern, or None if no match is found.
+    """
+    try:
+        config.load_kube_config()
+        v1 = client.CoreV1Api()
+        pods = v1.list_namespaced_pod(namespace)
+
+        for pod in pods.items:
+            if partial_pod_name in pod.metadata.name:
+                return pod.metadata.name
+
+        return None
+    except client.rest.ApiException as e:
+        print(f"Exception when calling CoreV1Api->list_namespaced_pod: {e}")
+        return None
+    
+def parse_log_timestamp(log_timestamp):
+    """
+    Parse a log timestamp into a datetime object.
+
+    Args:
+    log_timestamp (str): Timestamp string from a log line.
+
+    Returns:
+    datetime: A datetime object representing the timestamp.
+    """
+    for fmt in ("%Y-%m-%dT%H:%M:%S,%f", "%Y-%m-%d %H:%M:%S.%f"):
+        try:
+            return datetime.strptime(log_timestamp, fmt)
+        except ValueError:
+            continue
+    return None
+
+def get_pod_logs(namespace, pod_name, container_name="kserve-container", line_limit=0):
+    """
+    Get logs from a specified pod and container in the given namespace.
+
+    Args:
+    namespace (str): The namespace in which the pod exists.
+    pod_name (str): The name of the pod.
+    container_name (str, optional): The name of the container. Defaults to None.
+
+    Returns:
+    str: The logs from the specified pod and container.
+    """
+    try:
+        config.load_kube_config()
+
+        v1 = client.CoreV1Api()
+        log = v1.read_namespaced_pod_log(name=pod_name, namespace=namespace, container=container_name)
+        log_lines = log.splitlines()
+
+        return log_lines if len(log_lines) <= line_limit or line_limit == 0 else log_lines[:line_limit]
+    except client.rest.ApiException as e:
+        print(f"Exception when calling CoreV1Api->read_namespaced_pod_log: {e}")
+        return None

@@ -4,33 +4,43 @@ import re
 import argparse
 import csv
 import os
+from utils import find_pod_by_partial_name, parse_log_timestamp, get_pod_logs
 
 CONTAINER_EVENT_COUNT = 3
-
-def find_pod_by_partial_name(namespace, partial_pod_name):
-    """
-    Find a pod in the specified namespace that matches the partial name pattern.
-
-    Args:
-    namespace (str): The namespace in which to search for the pod.
-    partial_pod_name (str): A regex pattern that matches the partial name of the pod.
-
-    Returns:
-    str: The name of the first pod that matches the pattern, or None if no match is found.
-    """
-    try:
-        config.load_kube_config()
-        v1 = client.CoreV1Api()
-        pods = v1.list_namespaced_pod(namespace)
-
-        for pod in pods.items:
-            if partial_pod_name in pod.metadata.name:
-                return pod.metadata.name
-
-        return None
-    except client.rest.ApiException as e:
-        print(f"Exception when calling CoreV1Api->list_namespaced_pod: {e}")
-        return None
+# base runtime + MAR file, all events included
+full_required_substrings_sequence = [["When deploying to production, make sure to limit the set of"],
+                                    ["main org.pytorch.serve.snapshot.SnapshotManager", "Started restoring models from snapshot"],
+                                    ["[DEBUG] main org.pytorch.serve.wlm.ModelVersionedRefs", "Adding new version"],
+                                    ["[INFO ] main org.pytorch.serve.wlm.ModelManager - Model ", "loaded."],
+                                    ["org.pytorch.serve.wlm.WorkerThread", "Flushing req.cmd LOAD to backend"],
+                                    ["MODEL_LOG - Transformer model from path /home/", " loaded successfully"],
+                                    ["org.pytorch.serve.wlm.WorkerThread - Backend response t"]]
+full_key_events = ["Storage Init", "Kserve Container Init", 
+                  "First Log", 
+                  "Load Config", 
+                  "Unzip Model Archive",
+                  "Setup Model Dependency", 
+                  "Start Torch Worker", 
+                  "Worker Load Model", 
+                  "Service Ready"]
+# opt runtime, parallel events included
+server_required_substrings_sequence=[["When deploying to production, make sure to limit the set of"],
+                                    ["main org.pytorch.serve.snapshot.SnapshotManager", "Started restoring models from snapshot"],
+                                    ["[DEBUG] main org.pytorch.serve.wlm.ModelVersionedRefs", "Adding new version"],
+                                    ["[INFO ] main org.pytorch.serve.wlm.ModelManager - Model ", "loaded."],
+                                    ["org.pytorch.serve.wlm.WorkerThread", "Flushing req.cmd LOAD to backend"],
+                                    ["org.pytorch.serve.wlm.WorkerThread - Backend response t"]]
+worker_required_substrings_sequence=[["When deploying to production, make sure to limit the set of"],
+                                    ["INFO - Transformers version"],
+                                    ["Transformer model from path"]]
+server_key_events = ["Storage Init", "Kserve Container Init", 
+                  "First Log", 
+                  "Load Config", 
+                  "Unzip Model Archive",
+                  "Setup Model Dependency", 
+                  "Start Torch Worker", 
+                  "Service Ready"]
+worker_key_events = ["Worker Init", "Worker Load Model"]
 
 def get_container_duration(namespace, pod_name, container_name):
     """
@@ -98,48 +108,7 @@ def get_container_event_ts(namespace, pod_name):
         print(f"Exception when calling CoreV1Api->read_namespaced_pod: {e}")
         return None
 
-def get_pod_logs(namespace, pod_name, container_name="kserve-container", line_limit=300):
-    """
-    Get logs from a specified pod and container in the given namespace.
-
-    Args:
-    namespace (str): The namespace in which the pod exists.
-    pod_name (str): The name of the pod.
-    container_name (str, optional): The name of the container. Defaults to None.
-
-    Returns:
-    str: The logs from the specified pod and container.
-    """
-    try:
-        config.load_kube_config()
-
-        v1 = client.CoreV1Api()
-        log = v1.read_namespaced_pod_log(name=pod_name, namespace=namespace, container=container_name)
-        log_lines = log.splitlines()
-
-        return log_lines if len(log_lines) <= line_limit else log_lines[:line_limit]
-    except client.rest.ApiException as e:
-        print(f"Exception when calling CoreV1Api->read_namespaced_pod_log: {e}")
-        return None
-
-def parse_log_timestamp(log_timestamp):
-    """
-    Parse a log timestamp into a datetime object.
-
-    Args:
-    log_timestamp (str): Timestamp string from a log line.
-
-    Returns:
-    datetime: A datetime object representing the timestamp.
-    """
-    for fmt in ("%Y-%m-%dT%H:%M:%S,%f", "%Y-%m-%d %H:%M:%S.%f"):
-        try:
-            return datetime.strptime(log_timestamp, fmt)
-        except ValueError:
-            continue
-    return None
-
-def parse_log_line(log_line, required_substrings_sequence, index):
+def parse_log_line(log_line, required_substrings):
     """
     Parse a log line to extract the timestamp and the event/message.
 
@@ -158,13 +127,50 @@ def parse_log_line(log_line, required_substrings_sequence, index):
         event = match.group(2)
         timestamp = parse_log_timestamp(timestamp_str)
         
-        if all(substring in event for substring in required_substrings_sequence[index]):
+        if all(substring in event for substring in required_substrings):
             return timestamp, event
     return None, None
 
-def search_model_basename(log_line):
-    match = re.search(r'Model Store: /mnt/pvc/(.*?)/model-store', log_line)
-    return match.group(1) if match else None
+def serial_parse_log_event(logs, required_substrings_sequence=full_required_substrings_sequence):
+    log_event_ts = []
+    substring_index = 0
+    for line in logs:
+        # print(f'Line: {line}')
+        timestamp, event = parse_log_line(line, required_substrings_sequence[substring_index])
+                
+        if timestamp and event:
+            print(f"Timestamp: {timestamp}, Event: {event}")
+            log_event_ts.append([timestamp, event])
+            substring_index += 1
+            if substring_index == len(required_substrings_sequence):
+                break
+        # else:
+        #     print("Log line could not be parsed.")
+    print(f"Log Event TS: {log_event_ts}")
+    assert len(log_event_ts) == len(required_substrings_sequence), f"Log event ts len {len(log_event_ts)}, Subsequence len {len(required_substrings_sequence)}"
+    return log_event_ts
+
+def parallel_parse_log_event(logs):
+    server_log_event_ts = serial_parse_log_event(logs, server_required_substrings_sequence)
+    worker_log_event_ts = serial_parse_log_event(logs, worker_required_substrings_sequence)
+    return server_log_event_ts, worker_log_event_ts
+
+def summarize_event_ts(gather_event_ts, key_events):
+    res_event_ts = []
+    for i, ke in enumerate(key_events):
+        start = gather_event_ts[i][0].replace(tzinfo=None)
+        end = gather_event_ts[i + 1][0].replace(tzinfo=None)
+        res_event_ts.append([ke, (end - start).total_seconds()])
+    res_event_ts.append(["Total", (gather_event_ts[-1][0].replace(tzinfo=None) - gather_event_ts[0][0].replace(tzinfo=None)).total_seconds()])
+    print(res_event_ts)
+    return res_event_ts
+
+def search_model_basename(logs):
+    for log_line in logs:
+        match = re.search(r'Model Store: /mnt/pvc/(.*?)/model-store', log_line)
+        if match:
+            return match.group(1)
+    return None
 
 if __name__ == "__main__":
     # Set up argument parser
@@ -172,6 +178,9 @@ if __name__ == "__main__":
     parser.add_argument("-n", "--namespace", default="default", help="The namespace of the pod")
     parser.add_argument("-p", "--pod_name", help="The partial pod name pattern (regex)")
     # parser.add_argument("-c", "--container_name", help="The container name")
+    parser.add_argument("--resdir", default=".", help="result directory")
+    parser.add_argument("--suffix", default="", help="result file suffix")
+    parser.add_argument("--pp", action='store_true', help="Parse log in parallel way")
 
     # Parse arguments
     args = parser.parse_args()
@@ -193,57 +202,23 @@ if __name__ == "__main__":
         print("No logs available")
         exit(1)
         
-    required_substrings_sequence=[["When deploying to production, make sure to limit the set of"],
-                                ["main org.pytorch.serve.snapshot.SnapshotManager", "Started restoring models from snapshot"],
-                                ["Started server process"],
-                                ["[INFO ] main org.pytorch.serve.wlm.ModelManager - Model ", "loaded."],
-                                ["stdout MODEL_LOG - Torch worker started"],
-                                ["Worker init settings finished"],
-                                ["Loaded tokenizer from pretrained"],
-                                ["Loaded model from pretrained"],
-                                ["Model loaded on device: "],
-                                ["MODEL_LOG - Transformer model from path /home/", " loaded successfully"],
-                                ["org.pytorch.serve.wlm.WorkerThread - Backend response t"]]
-    key_events = ["Storage Init", "Kserve Container Init", "First Log", "Load Config", 
-                  "Start Server Process", "Load Model in Manager", "Start Torch Worker", 
-                  "Worker Init Setting", "Worker Load Tokenizer", "Worker Load Model", 
-                  "Worker Place Model to Device", "Worker Model Eval", "Worker Response"]
-
     # Parse log and get events
-    log_event_ts = []
-    substring_index = 0
-    for line in logs:
-        # print(f'Line: {line}')
-        timestamp, event = parse_log_line(line, required_substrings_sequence, substring_index)
-                
-        if timestamp and event:
-            print(f"Timestamp: {timestamp}, Event: {event}")
-            log_event_ts.append([timestamp, event])
-            substring_index += 1
-            if substring_index == len(required_substrings_sequence):
-                break
-        # else:
-        #     print("Log line could not be parsed.")
-    print(f"Log Event TS: {log_event_ts}")
-    assert len(log_event_ts) == len(required_substrings_sequence), f"Log event ts len {len(log_event_ts)}, Subsequence len {len(required_substrings_sequence)}"
-    
-    # Gather container ts and log ts
-    gather_event_ts = container_event_ts + log_event_ts
-    res_event_ts = []
-    for i, ke in enumerate(key_events):
-        start = gather_event_ts[i][0].replace(tzinfo=None)
-        end = gather_event_ts[i + 1][0].replace(tzinfo=None)
-        res_event_ts.append([ke, (end - start).total_seconds()])
-    res_event_ts.append(["Total", (gather_event_ts[-1][0].replace(tzinfo=None) - gather_event_ts[0][0].replace(tzinfo=None)).total_seconds()])
-    print(res_event_ts)
+    if args.pp:
+        log_event_ts, worker_log_event_ts = parallel_parse_log_event(logs)
+        gather_event_ts = container_event_ts + log_event_ts
+        res_event_ts = summarize_event_ts(gather_event_ts, server_key_events)
+        res_event_ts += summarize_event_ts(worker_log_event_ts, worker_key_events)
+    else:
+        log_event_ts = serial_parse_log_event(logs)
+        gather_event_ts = container_event_ts + log_event_ts
+        res_event_ts = summarize_event_ts(gather_event_ts, full_key_events)
+    res_event_ts.append(["Total App", (log_event_ts[-1][0].replace(tzinfo=None) - log_event_ts[0][0].replace(tzinfo=None)).total_seconds()])
     
     # Output to file
-    model_basename = None
-    for line in logs:
-        model_basename = search_model_basename(line)
-        if model_basename:
-            break
-    csv_filename = os.path.join(os.path.dirname(os.path.abspath(__file__)), f"../results/init-{model_basename}.csv")
+    model_basename = search_model_basename(logs)
+    target_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), f"../results/{args.resdir}")
+    os.makedirs(target_dir, exist_ok=True)
+    csv_filename = os.path.join(target_dir, f"init-{model_basename}{args.suffix}.csv")
     with open(csv_filename, 'w') as csvfile:
         csvwriter = csv.writer(csvfile)
         csvwriter.writerow(['Event', 'Duration'])
