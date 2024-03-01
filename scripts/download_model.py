@@ -6,18 +6,7 @@ import shutil
 from kubernetes import client, config
 from kubernetes.stream import stream
 import torch
-
-def get_model_basename(model_name):
-    """
-    Get the basename of the model name, removing any prefix.
-
-    Parameters:
-    model_name (str): The original model name.
-
-    Returns:
-    str: The basename of the model name.
-    """
-    return model_name.split("/")[-1]
+from utils import get_model_basename
 
 def download_and_save_model(model_name, save_directory):
     """

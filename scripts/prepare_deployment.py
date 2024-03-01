@@ -6,31 +6,7 @@ import subprocess
 import shutil
 from kubernetes import client, config
 from kubernetes.stream import stream
-
-def get_model_basename(model_name):
-    """
-    Get the basename of the model name, removing any prefix.
-
-    Parameters:
-    model_name (str): The original model name.
-
-    Returns:
-    str: The basename of the model name.
-    """
-    return model_name.split("/")[-1] if "/" in model_name else model_name
-
-def get_model_seriesname(model_basename):
-    series_parts = model_basename.split('-')
-    if len(series_parts) > 2:
-        if 't5' in model_basename:
-            series_name = '-'.join(series_parts[:-1])
-        elif 'bert' in model_basename:
-            series_name = series_parts[0]
-        else:
-            assert False, f"Unknown model {model_basename}, need further check"
-    else:
-        series_name = series_parts[0]
-    return series_name
+from utils import get_model_basename, get_model_seriesname
 
 def prepare_setup_config(setup_config_file_path, args):
     print(f"Preparing setup_config file: {setup_config_file_path}")
