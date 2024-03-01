@@ -13,7 +13,7 @@ full_required_substrings_sequence = [["When deploying to production, make sure t
                                     ["[DEBUG] main org.pytorch.serve.wlm.ModelVersionedRefs", "Adding new version"],
                                     ["[INFO ] main org.pytorch.serve.wlm.ModelManager - Model ", "loaded."],
                                     ["org.pytorch.serve.wlm.WorkerThread", "Flushing req.cmd LOAD to backend"],
-                                    ["MODEL_LOG - Transformer model from path /home/", " loaded successfully"],
+                                    ["Transformer model from path", " loaded successfully"],
                                     ["org.pytorch.serve.wlm.WorkerThread - Backend response t"]]
 full_key_events = ["Storage Init", "Kserve Container Init", 
                   "First Log", 
