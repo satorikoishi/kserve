@@ -7,6 +7,14 @@ import logging
 import os
 
 logger = logging.getLogger(__name__)
+logger.propagate = False
+# Create a console handler
+handler = logging.StreamHandler()
+# Create a formatter
+formatter = logging.Formatter('%(asctime)s.%(msecs)03d - %(levelname)s - %(message)s', '%Y-%m-%d %H:%M:%S')# Add the formatter to the handler
+handler.setFormatter(formatter)
+# Add the handler to the logger
+logger.addHandler(handler)
 logger.info("Transformers version %s", transformers.__version__)
 
 class T5Handler(BaseHandler):
