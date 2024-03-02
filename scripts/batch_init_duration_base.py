@@ -16,15 +16,22 @@ def main():
         switch_torchserve_config(runtime)
         for model_name in model_name_list:
             try:
-                # # Setup deployment (Only once is enough)
-                # prepare_deployment(model_name, runtime)
+                # Setup deployment (Only once is enough)
+                prepare_deployment(model_name, runtime)
                 # Apply model
                 model_seriesname = get_model_seriesname(model_name)
-                yaml_path = f'./yaml/test/{model_name}.yaml'
+                if runtime == "base":
+                    yaml_path = f'./yaml/test/{model_name}-mar.yaml'
+                elif runtime == "opt":
+                    yaml_path = f'./yaml/test/{model_name}.yaml'
+                else:
+                    assert False, f"Unknown runtime: {runtime}"
                 subprocess.run(f"kubectl apply -f {yaml_path}", shell=True, check=True)
                 # Wait and collect init data
                 time.sleep(600)
-                cmd = f"python3 ./scripts/simplified_init_duration.py -p {model_seriesname} --resdir comparison/{runtime}"
+                cmd = f"python3 ./scripts/init_duration.py -p {model_seriesname} --resdir comparison/{runtime}"
+                if runtime == "opt":
+                    cmd += " --pp"
                 subprocess.run(cmd, shell=True, check=True)
             except Exception as e:
                 print(f"An unexpected error occurred: {str(e)}")
