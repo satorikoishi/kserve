@@ -8,9 +8,11 @@ model_name_list = ["bloom-560m",
                    "flan-t5-small", "flan-t5-base", "flan-t5-large", 
                    "bert-base-uncased", "bert-large-uncased"]
 # runtime_config = ["base"]
-runtime_config = ["base", "opt"]
+full_runtime_config = ["base", "opt"]
 
-def fetch_data_from_file():
+save_directory = os.path.join(os.path.expanduser('~'), "Paper-prototype/Serverless-LLM-serving/figures")
+
+def fetch_data_from_file(runtime_config=full_runtime_config):
     comparison_dir = os.path.join(os.path.dirname(__file__), f"../results/comparison")
     model_dataframes = {}
     event_order = []  # Initialize an empty list to store the order of events
@@ -30,6 +32,26 @@ def fetch_data_from_file():
                 event_order = df_filtered.index.tolist()
                 
     return model_dataframes, event_order
+
+def draw_motivation():
+    model_dataframes, event_order = fetch_data_from_file(["base"])
+    # Prepare combined data for stacked bar chart
+    combined_df = pd.DataFrame(model_dataframes)
+    # Reorder DataFrame columns based on the event_order
+    combined_df = combined_df.loc[event_order]
+    # Transpose the DataFrame for plotting
+    combined_df_transposed = combined_df.T
+
+    # Plotting
+    fig, ax = plt.subplots(figsize=(12, 8))
+    combined_df_transposed.plot(kind='bar', stacked=True, ax=ax, colormap=cm.viridis)
+    plt.ylabel('Duration (seconds)')
+    plt.title('Combined Event Durations for Each Model Group')
+    plt.xticks(rotation=45)
+    plt.legend(title='Model', bbox_to_anchor=(1.05, 1), loc='upper left')
+    plt.tight_layout()
+    plt.savefig(os.path.join(save_directory, "motivation_latency_composition.png"))
+    plt.show()
 
 def draw_comparison_base():
     # Read datasets from files
@@ -51,8 +73,9 @@ def draw_comparison_base():
     plt.xticks(rotation=45)
     plt.legend(title='Model', bbox_to_anchor=(1.05, 1), loc='upper left')
     plt.tight_layout()
-    # plt.savefig("model_comparison_chart.png")
+    plt.savefig(os.path.join(save_directory, "evaluation_model_comparison.png"))
     plt.show()
 
 if __name__ == "__main__":
+    draw_motivation()
     draw_comparison_base()
