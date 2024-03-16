@@ -176,7 +176,7 @@ if __name__ == "__main__":
     # Set up argument parser
     parser = argparse.ArgumentParser(description="Get the duration of a container in a Kubernetes pod")
     parser.add_argument("-n", "--namespace", default="default", help="The namespace of the pod")
-    parser.add_argument("-p", "--pod_name", help="The partial pod name pattern (regex)")
+    parser.add_argument("-p", "--pod_name", required=True, help="The partial pod name pattern (regex)")
     # parser.add_argument("-c", "--container_name", help="The container name")
     parser.add_argument("--resdir", default=".", help="result directory")
     parser.add_argument("--suffix", default="", help="result file suffix")

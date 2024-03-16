@@ -67,7 +67,7 @@ def download_and_save_model(model_name, save_directory):
     
 def main():
     parser = argparse.ArgumentParser(description="Download a Hugging Face model with its config and tokenizer.")
-    parser.add_argument("--model_name", "-m", type=str, help="The name of the model to download.")
+    parser.add_argument("--model_name", "-m", type=str, required=True, help="The name of the model to download.")
     # parser.add_argument("--save_mode", "-s", required=False, type=str, default="pretrained", help="Save mode(pretained or ts).")
     
     args = parser.parse_args()

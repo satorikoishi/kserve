@@ -138,7 +138,7 @@ def setup_deployment(model_basename, model_seriesname, save_directory, yaml_dir)
 
 def main():
     parser = argparse.ArgumentParser(description="Pack mar file and deploy to pv.")
-    parser.add_argument("--model_name", "-m", type=str, help="The name of the model to download.")
+    parser.add_argument("--model_name", "-m", type=str, required=True, help="The name of the model to download.")
     parser.add_argument("--nogpu", action='store_true', help="Use handler with no gpu.")
     parser.add_argument("--tl", action='store_true', help="Use torch load pt file.")
     parser.add_argument("--noarch", action='store_true', help="Use no-archive instead of .mar file.")
