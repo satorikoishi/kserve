@@ -37,10 +37,12 @@ def package_model(model_name):
     model = AutoModel.from_pretrained(model_name)
     os.makedirs(os.path.join(local_model_path, "code"))
     model.save_pretrained(save_directory=local_model_path)
-    tokenizer.save_pretrained(save_directory=local_model_path)    
+    tokenizer.save_pretrained(save_directory=local_model_path)
     model_seriesname = get_model_seriesname(model_name)
     inference_script_path = os.path.join(os.path.dirname(__file__), "../model_archive/sagemaker", f"{model_seriesname}_inference.py")
+    requirements_path = os.path.join(os.path.dirname(__file__), "../model_archive/sagemaker", f"{model_seriesname}_requirements.txt")
     shutil.copy(inference_script_path, os.path.join(local_model_path, "code/inference_code.py"))
+    shutil.copy(requirements_path, os.path.join(local_model_path, "code/requirements.txt"))
 
     original_dir = os.getcwd()
     try:
@@ -60,6 +62,24 @@ def upload_model(model_name):
     
 def setup_deployment(model_name):
     endpoint_name = f"{model_name}-endpoint-serverless"
+    
+    # Delete existing ones to update
+    sagemaker_client = boto3.client('sagemaker')
+    model_matches = sagemaker_client.list_models(NameContains=model_name)["Models"]
+    if model_matches:
+        print(f"Delete found matching model: {model_matches}")
+        sagemaker_client.delete_model(ModelName=model_name)
+    endpoint_config_matches = sagemaker_client.list_endpoint_configs(NameContains=endpoint_name)["EndpointConfigs"]
+    if endpoint_config_matches:
+        print(f"Delete found matching ep config: {endpoint_config_matches}")
+        sagemaker_client.delete_endpoint_config(EndpointConfigName=endpoint_name)
+    endpoint_matches = sagemaker_client.list_endpoints(NameContains=endpoint_name)["Endpoints"]
+    if endpoint_matches:
+        print(f"Delete found matching ep: {endpoint_matches}")
+        sagemaker_client.delete_endpoint(EndpointName=endpoint_name)
+    
+    # Deploy
+    print("Deploying...")
     serverless_config = ServerlessInferenceConfig(memory_size_in_mb=2048, max_concurrency=10)
     model = PyTorchModel(
         entry_point="inference_code.py",

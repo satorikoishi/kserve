@@ -7,7 +7,7 @@ def model_fn(model_dir):
     Load the model for inference
     """
 
-    model_path = os.path.join(model_dir, 'model/')
+    model_path = model_dir
     
     # Load BERT tokenizer from disk.
     tokenizer = BertTokenizer.from_pretrained(model_path)
