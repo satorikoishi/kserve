@@ -80,7 +80,7 @@ def setup_deployment(model_name):
     
     # Deploy
     print("Deploying...")
-    serverless_config = ServerlessInferenceConfig(memory_size_in_mb=2048, max_concurrency=10)
+    serverless_config = ServerlessInferenceConfig(memory_size_in_mb=3072, max_concurrency=2)
     model = PyTorchModel(
         entry_point="inference_code.py",
         model_data=f'{local_model_path}/{model_file_name}',
@@ -148,8 +148,9 @@ if __name__ == "__main__":
     parser.add_argument("--model_name", "-m", type=str, required=True, help="The name of the model to download.")
     
     args = parser.parse_args()
-    model_name = get_model_basename(args.model_name)
+    model_name = args.model_name
     package_model(model_name)
+    model_name = get_model_basename(model_name)
     setup_deployment(model_name)
     if os.path.exists(local_model_path):
         shutil.rmtree(local_model_path)

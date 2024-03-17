@@ -17,6 +17,10 @@ def get_model_basename(model_name):
     return model_name.split("/")[-1] if "/" in model_name else model_name
 
 def get_model_seriesname(model_basename):
+    # Adapt to raw model name
+    if "/" in model_basename:
+        model_basename = model_basename.split("/")[-1]
+    # Process based on model basename
     series_parts = model_basename.split('-')
     if len(series_parts) > 2:
         if 't5' in model_basename:
