@@ -80,7 +80,7 @@ def setup_deployment(model_name):
     
     # Deploy
     print("Deploying...")
-    serverless_config = ServerlessInferenceConfig(memory_size_in_mb=3072, max_concurrency=2)
+    serverless_config = ServerlessInferenceConfig(memory_size_in_mb=3072, max_concurrency=1)
     model = PyTorchModel(
         entry_point="inference_code.py",
         model_data=f'{local_model_path}/{model_file_name}',
