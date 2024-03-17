@@ -3,31 +3,16 @@ import boto3
 import os
 import argparse
 import tarfile
-from utils import get_model_basename
-
-# Initialize clients
-s3 = boto3.client('s3')
-region = boto3.Session().region_name
-sagemaker_client = boto3.client('sagemaker', region_name=region)
-sagemaker_session = sagemaker.Session()
+import shutil
+from utils import get_model_basename, get_model_seriesname
+from transformers import AutoTokenizer, AutoModel
+from sagemaker.pytorch import PyTorchModel
+from sagemaker.serverless.serverless_inference_config import ServerlessInferenceConfig
 
 # Variables
 model_file_name = 'model.tar.gz'
+local_model_path = './temp'
 image_uri = '763104351884.dkr.ecr.us-east-1.amazonaws.com/pytorch-inference:2.2.0-cpu-py310-ubuntu20.04-sagemaker'
-
-def get_bucket_name():
-    # Retrieve the list of existing buckets
-    response = s3.list_buckets()
-
-    # Check if at least one bucket exists and retrieve its name
-    if response['Buckets']:
-        # Assuming you only have one bucket, get its name
-        bucket_name = response['Buckets'][0]['Name']
-        print(f"The bucket name is: {bucket_name}")
-    else:
-        print("No buckets found.")
-        
-    return bucket_name
 
 def get_role():
     iam = boto3.client('iam')
@@ -45,28 +30,56 @@ def get_role():
     return None
 
 def package_model(model_name):
-    save_directory = os.path.join(os.path.dirname(__file__), f"../model_archive/{model_name}")
+    if os.path.exists(local_model_path):
+        return
+    # Step 1: Package, then Upload the model to S3
+    tokenizer = AutoTokenizer.from_pretrained(model_name)
+    model = AutoModel.from_pretrained(model_name)
+    os.makedirs(os.path.join(local_model_path, "code"))
+    model.save_pretrained(save_directory=local_model_path)
+    tokenizer.save_pretrained(save_directory=local_model_path)    
+    model_seriesname = get_model_seriesname(model_name)
+    inference_script_path = os.path.join(os.path.dirname(__file__), "../model_archive/sagemaker", f"{model_seriesname}_inference.py")
+    shutil.copy(inference_script_path, os.path.join(local_model_path, "code/inference_code.py"))
 
-    with tarfile.open(model_file_name, "w:gz") as tar:
-        for filename in os.listdir(save_directory):
-            file_path = os.path.join(save_directory, filename)
-            if os.path.isfile(file_path):  # Check if it's a file, ignore subdirectories
-                tar.add(file_path, arcname=os.path.basename(file_path))
+    original_dir = os.getcwd()
+    try:
+        os.chdir(local_model_path)
+        with tarfile.open(model_file_name, "w:gz") as tar:
+            tar.add(".")
+    finally:
+        os.chdir(original_dir)
+
+def upload_model(model_name):
+    # Initialize clients
+    s3 = boto3.client('s3')
+    sagemaker_session = sagemaker.Session()
+    bucket_name = sagemaker_session.default_bucket()
+    with open(f'{local_model_path}/{model_file_name}', 'rb') as f:
+        s3.upload_fileobj(f, bucket_name, f'{model_name}/{model_file_name}')
     
-def upload_model():
-    # Step 1: Upload the model to S3
-    bucket_name = get_bucket_name()
-    model_path = f'{model_name}/{model_file_name}' # S3 key prefix
-    with open(model_file_name, 'rb') as f:
-        s3.upload_fileobj(f, bucket_name, model_path)
-    os.remove(model_file_name)
-    return f's3://{bucket_name}/{model_path}'
-
-def setup_deployment(model_name, model_data):
+def setup_deployment(model_name):
+    endpoint_name = f"{model_name}-endpoint-serverless"
+    serverless_config = ServerlessInferenceConfig(memory_size_in_mb=2048, max_concurrency=10)
+    model = PyTorchModel(
+        entry_point="inference_code.py",
+        model_data=f'{local_model_path}/{model_file_name}',
+        role=get_role(),
+        image_uri=image_uri,
+        name=model_name
+    )
+    predictor = model.deploy(endpoint_name=endpoint_name, serverless_inference_config=serverless_config)
+    print(predictor)
+    
+def setup_deployment_bystep(model_name):
+    sagemaker_client = boto3.client('sagemaker')
+    sagemaker_session = sagemaker.Session()
     # Step 2: Create a PyTorch model in SageMaker
     print("Creating model: ", model_name)
     role = get_role()  # SageMaker execution role ARN
-
+    bucket_name = sagemaker_session.default_bucket()
+    model_data = f's3://{bucket_name}/{model_name}/{model_file_name}'
+    
     create_model_response = sagemaker_client.create_model(
         ModelName=model_name,
         PrimaryContainer={
@@ -117,6 +130,6 @@ if __name__ == "__main__":
     args = parser.parse_args()
     model_name = get_model_basename(args.model_name)
     package_model(model_name)
-    
-    model_data = upload_model()
-    setup_deployment(model_name, model_data)
+    setup_deployment(model_name)
+    if os.path.exists(local_model_path):
+        shutil.rmtree(local_model_path)
