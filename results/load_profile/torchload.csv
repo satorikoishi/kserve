@@ -1,0 +1,8 @@
+Func,Calls,Time,Percent
+/home/venv/lib/python3.9/sitepackages/torch/serialization.py:1109(load_tensor),558,1.957,94.313
+{method 'set_' of 'torch._C._TensorBase' objects},558,0.076,3.663
+{method 'load' of '_pickle.Unpickler' objects},1,0.019,0.916
+{builtin method torch.tensor},558,0.004,0.193
+{builtin method _make_subclass},558,0.003,0.145
+Other,0,0.016,0.771
+Total,0,2.075,100

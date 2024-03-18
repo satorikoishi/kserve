@@ -3,6 +3,8 @@ import time
 from datetime import datetime, timezone
 from kubernetes import client, config
 import re
+import os
+import csv
 
 def get_model_basename(model_name):
     """
@@ -139,3 +141,59 @@ def get_pod_logs(namespace, pod_name, container_name="kserve-container", line_li
     except client.rest.ApiException as e:
         print(f"Exception when calling CoreV1Api->read_namespaced_pod_log: {e}")
         return None
+
+def round_floats_in_data(data):
+    rounded_data = []
+    for item in data:
+        if isinstance(item, tuple):
+            rounded_item = tuple(round(x, 3) if isinstance(x, float) else x for x in item)
+            rounded_data.append(rounded_item)
+        else:
+            rounded_data.append(item)
+    return rounded_data
+
+def analyze_cprofile():
+    cprofile_data_path = os.path.join(os.path.dirname(__file__), "../results/load_profile", "container-cprofile-flan-t5-large.log")
+    
+    methods = ["LoadStateDict", "TorchLoad", "LoadPretrained"]
+    with open(cprofile_data_path, 'r') as f:
+        data = f.read()
+        parts_split_by_splitter_only = data.split("Splitter")
+        cleaned_parts_after_simple_split = [part.replace("-", "").strip() for part in parts_split_by_splitter_only]
+        for idx, part in enumerate(cleaned_parts_after_simple_split):
+            print(f"Processing method: {methods[idx]}")
+            data_lines = part.strip().split("\n")
+            assert "ncalls  tottime  percall  cumtime  percall" in data_lines[5], f"Missing line {data_lines[5]}"
+            data_lines = data_lines[6:]
+        
+            functions = []
+
+            for line in data_lines:
+                # print(line)
+                parts = line.split(maxsplit=5)
+                ncalls, tottime, totpercall, cumtime, cumpercall, function = parts
+                tottime = float(tottime)
+                functions.append((function, ncalls, tottime))
+
+            # Sort the functions by tottime in descending order
+            sorted_functions = sorted(functions, key=lambda x: x[2], reverse=True)
+
+            # Calculate total time for percentage calculations
+            total_time = sum(tottime for _, _, tottime in sorted_functions)
+
+            # Calculate the percentage of time spent
+            functions_with_percent = [(func, ncalls, tottime, (tottime / total_time) * 100) for func, ncalls, tottime in sorted_functions]
+            
+            result = functions_with_percent[:5]
+            other = functions_with_percent[5:]
+            result.append(('Other', '0', sum(tottime for _, _, tottime, _ in other), sum(percent for _, _, _, percent in other)))
+            result.append(('Total', '0', total_time, 100))
+            
+            result = round_floats_in_data(result)
+            
+            csv_path = os.path.join(os.path.dirname(__file__), "../results/load_profile", f"{methods[idx].lower()}.csv")
+            with open(csv_path, 'w') as f:
+                csvwriter = csv.writer(f)
+                row = ["Func", "Calls", "Time", "Percent"]
+                csvwriter.writerow(row)
+                csvwriter.writerows(result)

@@ -1,0 +1,8 @@
+Func,Calls,Time,Percent
+{method 'copy_' of 'torch._C._TensorBase' objects},557,58.722,87.747
+{method 'uniform_' of 'torch._C._TensorBase' objects},432,3.61,5.394
+{method 'startswith' of 'str' objects},1750022,1.803,2.694
+/home/venv/lib/python3.9/sitepackages/torch/nn/modules/module.py:1875(_load_from_state_dict),898,1.233,1.842
+/home/venv/lib/python3.9/sitepackages/transformers/modeling_utils.py:528(<listcomp>),1118,0.551,0.823
+Other,0,1.003,1.499
+Total,0,66.922,100

@@ -2,6 +2,7 @@ import matplotlib.pyplot as plt
 import pandas as pd
 import matplotlib.cm as cm
 import os
+from utils import analyze_cprofile
 
 # model_name_list = ["bloom-560m", "bert-large-uncased"]
 model_name_list = ["bloom-560m", 
@@ -32,6 +33,11 @@ def fetch_data_from_file(runtime_config=full_runtime_config):
                 event_order = df_filtered.index.tolist()
                 
     return model_dataframes, event_order
+
+def draw_cprofile():
+    # analyze_cprofile()
+    pass
+    # TODO: graph from analyzed csv
 
 def draw_motivation():
     model_dataframes, event_order = fetch_data_from_file(["base"])
@@ -77,5 +83,6 @@ def draw_comparison_base():
     plt.show()
 
 if __name__ == "__main__":
-    draw_motivation()
-    draw_comparison_base()
+    # draw_motivation()
+    # draw_comparison_base()
+    draw_cprofile()
