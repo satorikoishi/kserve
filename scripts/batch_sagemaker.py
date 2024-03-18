@@ -7,7 +7,6 @@ from datetime import datetime, timedelta
 from utils import get_model_basename, get_endpoint_name, us_to_sec
 from sagemaker_invoke import serverless_invoke
 
-# model_name_list = ["bert-base-uncased"]
 model_name_list = ["bigscience/bloom-560m", 
                    "bert-base-uncased", "bert-large-uncased", 
                    "google/flan-t5-small", "google/flan-t5-base", "google/flan-t5-large"]
@@ -70,14 +69,13 @@ def result_output(results):
 
 def main():
     results = {}
-    for model_name in model_name_list:
-        results[model_name] = []
-        
+    for model_name in model_name_list:        
         # Deploy model
         subprocess.run(f"python3 ./scripts/sagemaker_deployment.py -m {model_name}", shell=True, check=True)
         
         # Invoke Func
         model_name = get_model_basename(model_name)
+        results[model_name] = []
         print(f"Invoking {model_name}...")
         e2e_latency = serverless_invoke(model_name)
         results[model_name].append(e2e_latency)

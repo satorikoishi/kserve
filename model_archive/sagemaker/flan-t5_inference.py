@@ -1,6 +1,6 @@
 import os
 import json
-from transformers import T5Tokenizer, T5Model
+from transformers import T5Tokenizer, T5ForConditionalGeneration
 
 def model_fn(model_dir):
     """
@@ -13,7 +13,7 @@ def model_fn(model_dir):
     tokenizer = T5Tokenizer.from_pretrained(model_path)
 
     # Load t5 model from disk.
-    model = T5Model.from_pretrained(model_path)
+    model = T5ForConditionalGeneration.from_pretrained(model_path)
 
     model_dict = {'model': model, 'tokenizer':tokenizer}
     
@@ -29,7 +29,8 @@ def predict_fn(input_data, model):
     
     encoded_input = tokenizer(input_data, return_tensors='pt')
     
-    return t5_model(**encoded_input)
+    return t5_model.generate(input_ids=encoded_input['input_ids'], 
+                      attention_mask=encoded_input['attention_mask'])
 
 def input_fn(request_body, request_content_type):
     """
