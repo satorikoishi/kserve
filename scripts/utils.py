@@ -33,6 +33,13 @@ def get_model_seriesname(model_basename):
         series_name = series_parts[0]
     return series_name
 
+def get_endpoint_name(model_name):
+    return f"{model_name}-endpoint-serverless"
+
+def us_to_sec(us):
+    seconds = us / 1000000
+    return round(seconds, 3)
+
 def are_pods_terminating(prefix):
     cmd = f"kubectl get pods --field-selector=status.phase=Running -o custom-columns=:metadata.name"
     result = subprocess.run(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)

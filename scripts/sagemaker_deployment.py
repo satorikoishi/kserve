@@ -4,7 +4,7 @@ import os
 import argparse
 import tarfile
 import shutil
-from utils import get_model_basename, get_model_seriesname
+from utils import get_model_basename, get_model_seriesname, get_endpoint_name
 from transformers import AutoTokenizer, AutoModel
 from sagemaker.pytorch import PyTorchModel
 from sagemaker.serverless.serverless_inference_config import ServerlessInferenceConfig
@@ -61,7 +61,7 @@ def upload_model(model_name):
         s3.upload_fileobj(f, bucket_name, f'{model_name}/{model_file_name}')
     
 def setup_deployment(model_name):
-    endpoint_name = f"{model_name}-endpoint-serverless"
+    endpoint_name = get_endpoint_name(model_name)
     
     # Delete existing ones to update
     sagemaker_client = boto3.client('sagemaker')
