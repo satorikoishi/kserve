@@ -1,0 +1,21 @@
+Time taken to load with from_pretrained(): 73.91379117965698 seconds
+Time taken to load with torch.load(): 1.821941614151001 seconds
+Init config: 0.0015094280242919922 seconds
+Init model class: 8.979305982589722 seconds
+State dict load: 1.6095399856567383 seconds
+Model load state dict: 84.9170708656311 seconds
+Time taken to load with safetensor: 0.01265573501586914 seconds
+Pretrained type: <class 'transformers.models.t5.modeling_t5.T5Model'>, size: 48.
+Torch load  type: <class 'transformers.models.t5.modeling_t5.T5ForConditionalGeneration'>, size: 48.
+Safetensor  type: <class 'dict'>, size: 18520.
+Models are identical: False
+Models are identical: False
+Time taken to access model already in memory (from_pretrained): 1.1920928955078125e-06 seconds
+Time taken to access model already in memory (torch.load): 2.384185791015625e-07 seconds
+Time taken to create memory-mapped file: 0.00010943412780761719 seconds
+Time taken to read from memory-mapped file: 2.019232749938965 seconds
+Time taken to load from memory-mapped buffer: 1.7976691722869873 seconds
+Time taken to serialize pretrained with pickle: 4.515765905380249 seconds
+Time taken to deserialize pretrained with pickle: 3.3883841037750244 seconds
+Time taken to serialize torch.load with pickle: 3.294541597366333 seconds
+Time taken to deserialize torch.load with pickle: 2.234574794769287 seconds

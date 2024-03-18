@@ -9,14 +9,14 @@ from sagemaker_invoke import serverless_invoke
 
 model_name_list = ["bigscience/bloom-560m", 
                    "bert-base-uncased", "bert-large-uncased", 
-                   "google/flan-t5-small", "google/flan-t5-base", "google/flan-t5-large"]
+                   "google/flan-t5-small", "google/flan-t5-base"]
 metric_list = ["ModelLatency", "OverheadLatency"]
 
 cloudwatch = boto3.client('cloudwatch')
 
 def fetch_sagemaker_metric(endpoint_name, metric_name, variant_name='AllTraffic', 
-                           start_time=datetime.utcnow() - timedelta(minutes=5), 
-                           end_time=datetime.utcnow() + timedelta(minutes=5)):
+                           start_time=datetime.utcnow() - timedelta(minutes=10), 
+                           end_time=datetime.utcnow() + timedelta(minutes=10)):
     count = 0
     while True:
         response = cloudwatch.get_metric_statistics(
@@ -25,6 +25,10 @@ def fetch_sagemaker_metric(endpoint_name, metric_name, variant_name='AllTraffic'
             Dimensions=[
                 {
                     'Name': 'EndpointName',
+                    'Value': endpoint_name
+                },
+                {
+                    'Name': 'EndpointConfigName',
                     'Value': endpoint_name
                 },
                 {
@@ -70,14 +74,18 @@ def result_output(results):
 def main():
     results = {}
     for model_name in model_name_list:        
-        # Deploy model
-        subprocess.run(f"python3 ./scripts/sagemaker_deployment.py -m {model_name}", shell=True, check=True)
+        # # Deploy model
+        # subprocess.run(f"python3 ./scripts/sagemaker_deployment.py -m {model_name}", shell=True, check=True)
         
         # Invoke Func
         model_name = get_model_basename(model_name)
         results[model_name] = []
         print(f"Invoking {model_name}...")
-        e2e_latency = serverless_invoke(model_name)
+        try:
+            e2e_latency = serverless_invoke(model_name)
+        except Exception as e:
+            print(f"Unexpected error: {e}")
+            break
         results[model_name].append(e2e_latency)
         print(f"E2E latency: {e2e_latency}")
 

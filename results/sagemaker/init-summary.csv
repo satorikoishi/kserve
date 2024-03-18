@@ -1,0 +1,6 @@
+Model Name,E2ELatency,ModelLatency,OverheadLatency
+bloom-560m,104.20583128929138,52.088,16.046
+bert-base-uncased,27.630837202072144,4.164,15.97
+bert-large-uncased,44.616796016693115,8.826,15.788
+flan-t5-small,27.74979305267334,4.386,16.082
+flan-t5-base,36.63354134559631,6.779,15.934
