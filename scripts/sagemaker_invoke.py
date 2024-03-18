@@ -1,10 +1,20 @@
 import sagemaker
 import argparse
 import time
+import boto3
 from utils import get_endpoint_name
+from botocore.config import Config
 
 def serverless_invoke(model_name):
-    sm = sagemaker.Session().sagemaker_runtime_client
+    custom_config = Config(
+        retries={'max_attempts': 0, # disable retry
+                 'mode': 'standard'
+                 },
+        read_timeout=300,
+        connect_timeout=60
+    )
+    sm = boto3.client('sagemaker-runtime', config=custom_config)
+    # sm = sagemaker.Session().sagemaker_runtime_client
 
     prompt = "The best part of Amazon SageMaker is that it makes machine learning easy."
 
