@@ -1,8 +1,8 @@
 Func,Calls,Time,Percent
-{method 'copy_' of 'torch._C._TensorBase' objects},559,76.35,87.484
-{method 'uniform_' of 'torch._C._TensorBase' objects},432,4.538,5.2
-{method 'normal_' of 'torch._C._TensorBase' objects},438,4.257,4.878
-/home/venv/lib/python3.9/sitepackages/torch/serialization.py:1109(load_tensor),557,1.748,2.003
-{method 'values' of 'collections.OrderedDict' objects},3910,0.197,0.226
+TensorBase.copy(),559,76.35,87.484
+TensorBase.uniform(),432,4.538,5.2
+TensorBase.normal(),438,4.257,4.878
+load_tensor(),557,1.748,2.003
+OrderedDict.value(),3910,0.197,0.226
 Other,0,0.183,0.21
 Total,0,87.273,100

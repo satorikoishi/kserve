@@ -10,6 +10,7 @@ model_name_list = ["bloom-560m",
                    "bert-base-uncased", "bert-large-uncased"]
 # runtime_config = ["base"]
 full_runtime_config = ["base", "opt"]
+methods = ["Load Pretrained", "Load State Dict", "Torch Load"]
 
 save_directory = os.path.join(os.path.expanduser('~'), "Paper-prototype/Serverless-LLM-serving/figures")
 
@@ -36,8 +37,11 @@ def fetch_data_from_file(runtime_config=full_runtime_config):
 
 def draw_cprofile():
     # analyze_cprofile()
-    pass
-    # TODO: graph from analyzed csv
+    cprofile_dir = os.path.join(os.path.dirname(__file__), f"../results/load_profile")
+    for method in methods:
+        cprofile_path = os.path.join(cprofile_dir, f'{method.replace(" ", "").lower()}.csv')
+        df = pd.read_csv(cprofile_path)
+        print(df)
 
 def draw_motivation():
     model_dataframes, event_order = fetch_data_from_file(["base"])
