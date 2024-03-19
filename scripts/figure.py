@@ -1,5 +1,6 @@
 import matplotlib.pyplot as plt
 import pandas as pd
+import numpy as np
 import matplotlib.cm as cm
 import os
 from utils import analyze_cprofile
@@ -37,11 +38,68 @@ def fetch_data_from_file(runtime_config=full_runtime_config):
 
 def draw_cprofile():
     # analyze_cprofile()
+    func_color_map = {
+        "TensorBase.copy()": "#FF9999",
+        "TensorBase.uniform()": "#66B3FF",
+        "str.startswith()": "#99FF99",
+        "TensorBase.normal()": "#FFCC99",
+        "load_tensor()": "#FF6666",
+        "TensorBase.set()": "#CCCCFF",
+        "Unpickler.load()": "#66FF66",
+        "Other": "#999999"
+    }
+    legend_order = [
+        "TensorBase.copy()",
+        "TensorBase.uniform()",
+        "str.startswith()",
+        "TensorBase.normal()",
+        "load_tensor()",
+        "Other"
+    ]
+    legend_labels = set()  # Track which labels have been added to avoid duplicates
+    
     cprofile_dir = os.path.join(os.path.dirname(__file__), f"../results/load_profile")
+    fig, ax = plt.subplots(figsize=(10, 7))
     for method in methods:
+        print(f"Method: {method}")
         cprofile_path = os.path.join(cprofile_dir, f'{method.replace(" ", "").lower()}.csv')
         df = pd.read_csv(cprofile_path)
+        df = df.drop(6)
+        # Aggregate the fourth and fifth rows' "Time" and "Percent" into the "Other" row
+        other_time = df.iloc[3:5]['Time'].sum() + df[df['Func'] == 'Other']['Time'].iloc[0]
+        other_percent = df.iloc[3:5]['Percent'].sum() + df[df['Func'] == 'Other']['Percent'].iloc[0]
+        # Update the "Other" row
+        df.loc[df['Func'] == 'Other', 'Time'] = other_time
+        df.loc[df['Func'] == 'Other', 'Percent'] = other_percent
+        # Drop the fourth and fifth rows
+        df = df.drop(df.index[3:5]).reset_index(drop=True)
+        if method == "Torch Load":
+            # Combine 2nd and 3rd functions into "Other"
+            other_time = df.iloc[1:3]['Time'].sum() + df[df['Func'] == 'Other']['Time'].iloc[0]
+            df.loc[df['Func'] == 'Other', 'Time'] = other_time
+            df = df.drop(df.index[1:3]).reset_index(drop=True)
+            method = 'Deserialization'
+            
         print(df)
+            
+        bottom=np.zeros(1)
+        for i, time in enumerate(df['Time']):
+            func = df['Func'][i]
+            # print(legend_labels)
+            label = func if func not in legend_labels else ""
+            # print(label)
+            if label:
+                legend_labels.add(func)
+            ax.bar(method, time, width=0.5, bottom=bottom, color=func_color_map.get(func, "#000000"), label=label)
+            bottom += time
+    # Manually create legend handles and labels based on the desired order
+    handles = [plt.Rectangle((0,0),1,1, color=func_color_map[func]) for func in legend_order]
+    labels = [func for func in legend_order]
+    # Adding labels, title, and custom x-axis tick labels
+    ax.set_ylabel('Time (seconds)')
+    ax.set_title('Time Distribution by Method and Function')
+    ax.legend(handles, labels, title='Function')
+    plt.show()
 
 def draw_motivation():
     model_dataframes, event_order = fetch_data_from_file(["base"])
