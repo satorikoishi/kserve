@@ -143,8 +143,27 @@ def draw_comparison_base():
     plt.tight_layout()
     plt.savefig(os.path.join(save_directory, "evaluation_model_comparison.png"))
     plt.show()
+    
+def draw_comparison_evaluation():
+    sagemaker_path = os.path.join(os.path.dirname(__file__), f"../results/sagemaker/init-summary.csv")
+    df = pd.read_csv(sagemaker_path)
+    df['NetworkLatency'] = df['E2ELatency'] - df['ModelLatency'] - df['OverheadLatency']
+    fig, ax = plt.subplots(figsize=(12, 8))
+    print(df)
+    bottom = np.zeros(len(df))
+    for latency_t in ['ModelLatency', 'OverheadLatency', 'NetworkLatency']:
+        ax.bar(df['Model Name'], df[latency_t], bottom=bottom, label=latency_t)
+        bottom += df[latency_t]
+    # Adding labels and title
+    ax.set_ylabel('Latency (s)')
+    ax.set_title('End-to-End Latency Breakdown by Model')
+    ax.legend()
+    plt.xticks(rotation=45, ha="right")
+    plt.tight_layout()
+    plt.show()
 
 if __name__ == "__main__":
     # draw_motivation()
     # draw_comparison_base()
-    draw_cprofile()
+    # draw_cprofile()
+    draw_comparison_evaluation()
