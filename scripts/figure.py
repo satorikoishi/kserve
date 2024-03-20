@@ -36,6 +36,16 @@ def fetch_data_from_file(runtime_config=full_runtime_config):
                 
     return model_dataframes, event_order
 
+def get_data_fk(df, fk, fv, k):
+    # Substring matching to find the correct column name
+    column_name = [col for col in df.columns if k in col][0]  # Assumes at least one match exists
+    print(f"Found matching column: {column_name}")
+    matched_rows = df.loc[df[fk] == fv, column_name]
+    assert len(matched_rows) == 1, f"Expected only one matching row, Got {matched_rows}"
+    v = matched_rows.iloc[0]
+    print(f"For {fk} = {fv}, {column_name} = {v}")
+    return v
+
 def draw_cprofile():
     # analyze_cprofile()
     func_color_map = {
@@ -218,10 +228,82 @@ def draw_evaluation_base():
     plt.xticks(rotation=45)
     plt.savefig(os.path.join(save_directory, "evaluation_comparison_base.png"))
     plt.show()
+    
+def draw_inference():
+    # Base inference vs load
+    inf_path = os.path.join(os.path.dirname(__file__), f"../results/inference/opt.csv")
+    inf_df = pd.read_csv(inf_path, sep='\t')
+    
+    inf_list = []
+    load_list = []
+    
+    for model in model_name_list:
+        base_load_path = os.path.join(os.path.dirname(__file__), f"../results/comparison/base/init-{model}-mar.csv")
+        base_load_df = pd.read_csv(base_load_path)
+        print(base_load_df)
+        
+        inf_list.append(round(get_data_fk(inf_df, 'Model', model, 'Inference') / 1000, 3))  # ms to s
+        load_list.append(get_data_fk(base_load_df, 'Event', 'Total', 'Duration'))
+    
+    print(inf_list)
+    print(load_list)
+    
+    fig, ax1 = plt.subplots(figsize=(10, 7))
+    
+    # Calculate the ratio of load latency to inference latency for each model
+    latency_ratio = [load / inference for load, inference in zip(load_list, inf_list)]
+
+    # Define bar width
+    bar_width = 0.35
+
+    # Set position of bar on X axis
+    r1 = np.arange(len(model_name_list))
+    r2 = [x + bar_width for x in r1]
+
+    # Bar plot for inference and load latency
+    ax1.bar(r1, inf_list, color='b', width=bar_width, edgecolor='grey', label='Inference Latency (s)')
+    ax1.bar(r2, load_list, color='r', width=bar_width, edgecolor='grey', label='Load Latency (s)')
+
+    # Setting the y-axis to log scale for latency values
+    ax1.set_yscale('log')
+    ax1.set_xlabel('Model', fontweight='bold')
+    ax1.set_ylabel('Latency (seconds)', fontweight='bold')
+
+    # Second y-axis for the ratio
+    ax2 = ax1.twinx()
+    ax2.plot(model_name_list, latency_ratio, color='g', label='Load/Inference Latency Ratio', marker='o')
+    ax2.set_ylabel('Ratio', fontweight='bold')
+    ax2.set_ylim(0)  # Starts the secondary y-axis from 0
+    # ax2.set_yscale('log')
+    # # Adjust the y-axis range to make the line appear uniformly high
+    # # This is done by setting the lower limit closer to the smallest value and the upper limit beyond the largest value
+    # min_ratio, max_ratio = min(latency_ratio), max(latency_ratio)
+    # ax2.set_ylim(bottom=0.8 * min_ratio, top=1.1 * max_ratio)  # Example adjustment
+
+    
+    # Setting the title, adjusting the x-axis, and adding legend
+    ax1.set_title('Inference and Load Latency Comparison by Model')
+    ax1.set_xticks([r + bar_width/2 for r in r1])
+    ax1.set_xticklabels(model_name_list)
+
+    # Combining legends from both axes
+    lines, labels = ax1.get_legend_handles_labels()
+    lines2, labels2 = ax2.get_legend_handles_labels()
+    ax2.legend(lines + lines2, labels + labels2, loc='upper left')
+
+    plt.xticks(rotation=45)
+    plt.tight_layout()
+    plt.savefig(os.path.join(save_directory, "motivation_inference_ratio.png"))
+    plt.show()
+    
+def draw_resource():
+    pass
 
 if __name__ == "__main__":
     # draw_motivation()
     # draw_comparison()
     # draw_cprofile()
     # draw_sagemaker()
-    draw_evaluation_base()
+    # draw_evaluation_base()
+    # draw_inference()
+    draw_resource()
