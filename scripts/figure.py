@@ -99,6 +99,7 @@ def draw_cprofile():
     ax.set_ylabel('Time (seconds)')
     ax.set_title('Time Distribution by Method and Function')
     ax.legend(handles, labels, title='Function')
+    plt.savefig(os.path.join(save_directory, "motivation_cprofile.png"))
     plt.show()
 
 def draw_motivation():
@@ -121,7 +122,7 @@ def draw_motivation():
     plt.savefig(os.path.join(save_directory, "motivation_latency_composition.png"))
     plt.show()
 
-def draw_comparison_base():
+def draw_comparison():
     # Read datasets from files
     model_dataframes, event_order = fetch_data_from_file()
     print(model_dataframes)
@@ -141,10 +142,10 @@ def draw_comparison_base():
     plt.xticks(rotation=45)
     plt.legend(title='Model', bbox_to_anchor=(1.05, 1), loc='upper left')
     plt.tight_layout()
-    plt.savefig(os.path.join(save_directory, "evaluation_model_comparison.png"))
+    plt.savefig(os.path.join(save_directory, "misc_model_comparison.png"))
     plt.show()
     
-def draw_comparison_evaluation():
+def draw_sagemaker():
     sagemaker_path = os.path.join(os.path.dirname(__file__), f"../results/sagemaker/init-summary.csv")
     df = pd.read_csv(sagemaker_path)
     df['NetworkLatency'] = df['E2ELatency'] - df['ModelLatency'] - df['OverheadLatency']
@@ -160,10 +161,67 @@ def draw_comparison_evaluation():
     ax.legend()
     plt.xticks(rotation=45, ha="right")
     plt.tight_layout()
+    plt.savefig(os.path.join(save_directory, "misc_sagemaker.png"))
+    plt.show()
+    
+def draw_evaluation_base():
+    sagemaker_path = os.path.join(os.path.dirname(__file__), f"../results/sagemaker/init-summary.csv")
+    sagemaker_df = pd.read_csv(sagemaker_path)
+    sagemaker_df['Total'] = sagemaker_df['ModelLatency'] + sagemaker_df['OverheadLatency']
+    
+    base_list = []
+    opt_list = []
+    sagemaker_list = []
+    for model in model_name_list:
+        base_init_path = os.path.join(os.path.dirname(__file__), f"../results/comparison", f"base/init-{model}-mar.csv")
+        opt_init_path = os.path.join(os.path.dirname(__file__), f"../results/comparison", f"opt/init-{model}.csv")
+        
+        base_df = pd.read_csv(base_init_path)
+        opt_df = pd.read_csv(opt_init_path)
+        base_list.append(base_df.loc[base_df['Event'] == 'Total', 'Duration'].iloc[0])
+        opt_list.append(opt_df.loc[opt_df['Event'] == 'Total App', 'Duration'].iloc[0])
+        
+        matched_rows = sagemaker_df.loc[sagemaker_df['Model Name'] == model]
+        if not matched_rows.empty:
+            sagemaker_list.append(matched_rows['Total'].values[0])
+        else:
+            sagemaker_list.append(0)
+    print(base_list)
+    print(opt_list)
+    print(sagemaker_list)
+    
+    # Plotting
+    fig, ax = plt.subplots(figsize=(10, 7))
+
+    # Define bar width
+    bar_width = 0.25
+
+    # Set position of bar on X axis
+    r1 = np.arange(len(base_list))
+    r2 = [x + bar_width for x in r1]
+    r3 = [x + bar_width for x in r2]
+
+    # Make the plot
+    ax.bar(r1, opt_list, color='b', width=bar_width, edgecolor='grey', label='FaServe')
+    ax.bar(r2, base_list, color='r', width=bar_width, edgecolor='grey', label='KServe')
+    ax.bar(r3, sagemaker_list, color='g', width=bar_width, edgecolor='grey', label='SageMaker')
+
+    # Add xticks on the middle of the group bars
+    ax.set_xlabel('Model', fontweight='bold')
+    ax.set_ylabel('Duration (seconds)', fontweight='bold')
+    ax.set_title('Evaluation Comparison by Model')
+    ax.set_xticks([r + bar_width for r in range(len(base_list))])
+    ax.set_xticklabels(model_name_list)
+
+    # Create legend & Show graphic
+    ax.legend()
+    plt.xticks(rotation=45)
+    plt.savefig(os.path.join(save_directory, "evaluation_comparison_base.png"))
     plt.show()
 
 if __name__ == "__main__":
     # draw_motivation()
-    # draw_comparison_base()
+    # draw_comparison()
     # draw_cprofile()
-    draw_comparison_evaluation()
+    # draw_sagemaker()
+    draw_evaluation_base()
