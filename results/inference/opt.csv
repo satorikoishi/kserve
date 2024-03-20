@@ -1,0 +1,7 @@
+Model	Inference latency (ms)
+bloom-560m	1766
+flan-t5-small	1035
+flan-t5-base	1035
+flan-t5-large	1226
+bert-base-uncased	228
+bert-large-uncased	241
