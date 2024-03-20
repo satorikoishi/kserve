@@ -297,7 +297,39 @@ def draw_inference():
     plt.show()
     
 def draw_resource():
-    pass
+    res_list = []
+    cpus = [1, 2, 4, 8, 16]
+    for cpu in cpus:
+        resource_path = os.path.join(os.path.dirname(__file__), f"../results/resource/init-flan-t5-large{cpu}cpu.csv")
+        df = pd.read_csv(resource_path)
+        print(df)
+        res_list.append(get_data_fk(df, 'Event', 'Worker Response', 'Duration'))
+    print(res_list)
+    
+    # Plotting the relationship between number of CPUs and load latency
+    fig, ax = plt.subplots(figsize=(10, 7))
+
+    ax.plot(cpus, res_list, marker='o', linestyle='-', color='b', label='Load Latency (s)')
+
+    # Adding labels and title
+    ax.set_xlabel('Number of CPUs', fontweight='bold')
+    ax.set_ylabel('Load Latency (seconds)', fontweight='bold')
+    ax.set_title('Load Latency vs. Number of CPUs')
+
+    # # Adding a grid for better readability
+    # ax.grid(True, which='both', linestyle='--', linewidth=0.5)
+
+    # Setting the x-axis to logarithmic scale to better represent the CPU configurations
+    ax.set_xscale('log')
+    ax.set_xticks(cpus)
+    ax.get_xaxis().set_major_formatter(plt.ScalarFormatter())  # Show actual CPU numbers, not scientific notation
+
+    ax.legend()
+
+    plt.tight_layout()
+    plt.savefig(os.path.join(save_directory, "motivation_resource_effect.png"))
+    plt.show()
+
 
 if __name__ == "__main__":
     # draw_motivation()
