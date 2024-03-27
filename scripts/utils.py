@@ -70,6 +70,8 @@ def prepare_deployment(model_name, runtime_config):
     cmd = f"python3 ./scripts/prepare_deployment.py -m {model_name}"
     if runtime_config == "base":
         pass
+    elif runtime_config == "baseplus":
+        cmd += " --tl"
     elif runtime_config == "opt":
         cmd += " --tl --noarch"
     else:

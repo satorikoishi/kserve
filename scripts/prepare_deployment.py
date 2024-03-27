@@ -178,6 +178,8 @@ def main():
     # Split mar and noarch
     if not args.noarch:
         model_basename += "-mar"
+        if args.tl:
+            model_basename += "-tl"
     setup_deployment(model_basename, model_seriesname, save_directory, yaml_dir)
 
 if __name__ == "__main__":
