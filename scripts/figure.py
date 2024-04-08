@@ -330,6 +330,25 @@ def draw_resource():
     plt.savefig(os.path.join(save_directory, "motivation_resource_effect.png"))
     plt.show()
 
+def draw_chosen_trace():
+    df = pd.read_csv(os.path.join(os.path.dirname(__file__), f"../results/trace/chosen_data.csv")).to_numpy()
+    df = df[:, 4:]
+    plt.figure(figsize=(20, 8))
+
+    # Generating data for 1440 minutes (24 hours)
+    minutes = np.arange(1, 1441)
+
+    plt.plot(minutes, df[0], label='Sporadic', alpha=0.7)
+    plt.plot(minutes, df[1], label='Bursty', alpha=0.7)
+    plt.plot(minutes, df[2], label='Periodic', alpha=0.7)
+
+    plt.title('Workload Patterns Over 24 Hours')
+    plt.xlabel('Minute of Day')
+    plt.ylabel('Activity Level')
+    plt.legend()
+    plt.grid(True)
+    plt.savefig(os.path.join(save_directory, "evaluation_chosen_trace.png"))
+    plt.show()
 
 if __name__ == "__main__":
     # draw_motivation()
@@ -338,4 +357,5 @@ if __name__ == "__main__":
     # draw_sagemaker()
     # draw_evaluation_base()
     # draw_inference()
-    draw_resource()
+    # draw_resource()
+    draw_chosen_trace()
