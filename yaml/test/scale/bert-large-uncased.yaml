@@ -6,7 +6,7 @@ spec:
   predictor:
     containerConcurrency: 1
     minReplicas: 0
-    maxReplicas: 10
+    maxReplicas: 32
     scaleTarget: 1
     scaleMetric: concurrency
     model:
@@ -16,7 +16,7 @@ spec:
       resources:
         limits:
           cpu: "2"
-          memory: 32Gi
+          memory: 16Gi
         requests:
           cpu: "2"
-          memory: 32Gi
+          memory: 16Gi
