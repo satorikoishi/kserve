@@ -3,7 +3,7 @@ import os
 import subprocess
 import time
 from utils import wait_for_pods_termination, get_model_seriesname, prepare_deployment
-from runtime_switch import switch_torchserve_config
+from utils import switch_torchserve_config
 
 model_name_list = ["bloom-560m", 
                    "flan-t5-small", "flan-t5-base", "flan-t5-large", 
