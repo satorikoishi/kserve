@@ -2,6 +2,7 @@ import argparse
 import yaml
 import os
 import subprocess
+from utils import set_stable_window
         
 def switch_torchserve_config(runtime):
     runtime_config_dir = os.path.join(os.path.dirname(__file__), "../config/runtimes")
@@ -63,6 +64,8 @@ def switch_torchserve_config(runtime):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Switch runtime between base and opt.")
     parser.add_argument("--runtime", "-r", required=False, type=str, default="opt", help="Runtime: base or opt(default).")
+    parser.add_argument("--stablewindow", "-s", required=False, type=str, default="1m", help="Autoscaler stable window.")
 
     args = parser.parse_args()
     switch_torchserve_config(args.runtime)
+    set_stable_window(args.stablewindow)

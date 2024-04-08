@@ -143,6 +143,32 @@ def get_pod_logs(namespace, pod_name, container_name="kserve-container", line_li
     except client.rest.ApiException as e:
         print(f"Exception when calling CoreV1Api->read_namespaced_pod_log: {e}")
         return None
+    
+def set_stable_window(new_stable_window='1m'):
+    # Load kubeconfig
+    config.load_kube_config()
+
+    # Define the namespace and ConfigMap name
+    namespace = 'knative-serving'
+    configmap_name = 'config-autoscaler'
+
+    # Create an API client for the ConfigMaps
+    v1 = client.CoreV1Api()
+
+    try:
+        # Fetch the existing ConfigMap
+        cm = v1.read_namespaced_config_map(configmap_name, namespace)
+        
+        # Update the stable-window value
+        if 'data' not in cm.data:
+            cm.data = {}
+        cm.data['stable-window'] = new_stable_window
+        
+        # Apply the update
+        v1.replace_namespaced_config_map(configmap_name, namespace, cm)
+        print(f"Updated 'stable-window' in '{configmap_name}' ConfigMap to '{new_stable_window}'.")
+    except client.exceptions.ApiException as e:
+        print("Failed to update ConfigMap:", e)
 
 def round_floats_in_data(data):
     rounded_data = []
