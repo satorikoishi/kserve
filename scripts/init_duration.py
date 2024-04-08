@@ -6,7 +6,6 @@ import csv
 import os
 from utils import find_pod_by_partial_name, parse_log_timestamp, get_pod_logs
 
-CONTAINER_EVENT_COUNT = 3
 # base runtime + MAR file, all events included
 full_required_substrings_sequence = [["When deploying to production, make sure to limit the set of"],
                                     ["main org.pytorch.serve.snapshot.SnapshotManager", "Started restoring models from snapshot"],
@@ -193,7 +192,10 @@ if __name__ == "__main__":
     
     # Get container events
     container_event_ts = get_container_event_ts(args.namespace, pod_name)
-    assert len(container_event_ts) == CONTAINER_EVENT_COUNT
+    if len(container_event_ts) == 1:
+        server_key_events =  server_key_events[2:]
+    else:
+        assert len(container_event_ts) == 3
     print(f"Container Event TS: {container_event_ts}")
     
     # Read logs
