@@ -8,8 +8,8 @@ from runtime_switch import switch_torchserve_config
 model_name_list = ["bloom-560m", 
                    "flan-t5-small", "flan-t5-base", "flan-t5-large", 
                    "bert-base-uncased", "bert-large-uncased"]
-# runtime_config = ["base", "baseplus", "opt"]
-runtime_config = ["baseplus"]
+runtime_config = ["base", "baseplus", "opt"]
+# runtime_config = ["baseplus"]
 
 def main():
     for runtime in runtime_config:
@@ -20,8 +20,8 @@ def main():
             switch_torchserve_config(runtime)
         for model_name in model_name_list:
             try:
-                # Setup deployment (Only once is enough)
-                prepare_deployment(model_name, runtime)
+                # # Setup deployment (Only once is enough)
+                # prepare_deployment(model_name, runtime)
                 # Apply model
                 model_seriesname = get_model_seriesname(model_name)
                 if runtime == "base":
