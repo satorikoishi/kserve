@@ -1,7 +1,7 @@
 apiVersion: serving.kserve.io/v1beta1
 kind: InferenceService
 metadata:
-  name: "METADATA_NAME"
+  name: "flan-t5"
 spec:
   predictor:
     containerConcurrency: 1
@@ -12,7 +12,7 @@ spec:
     model:
       modelFormat:
         name: pytorch
-      storageUri: pvc://task-pv-claim/STORAGE_DIR
+      storageUri: pvc://task-pv-claim/flan-t5-large-mar-tl
       resources:
         limits:
           cpu: "2"

@@ -97,7 +97,7 @@ def setup_model_store(model_basename, model_seriesname, save_directory, config_t
     except IOError as e:
         print(f"Error writing file: {e}")
 
-def setup_deployment(model_basename, model_seriesname, save_directory, yaml_dir):
+def setup_storage_pod(model_basename, save_directory):
     # mkdir in storage pod
     config.load_kube_config()
     v1 = client.CoreV1Api()
@@ -114,8 +114,9 @@ def setup_deployment(model_basename, model_seriesname, save_directory, yaml_dir)
     subprocess.run(f"kubectl cp {save_directory}/config/config.properties model-store-pod:/pv/{model_basename}/config", shell=True)
     subprocess.run(f"kubectl exec model-store-pod -- rm -r /pv/{model_basename}/model-store", shell=True)
     subprocess.run(f"kubectl cp {save_directory}/model-store model-store-pod:/pv/{model_basename}/model-store", shell=True)
+
+def generate_yaml(model_basename, model_seriesname, template_yaml, yaml_dir):
     # Generate yaml from template
-    template_yaml = os.path.join(yaml_dir, "template.yaml")
     target_yaml = os.path.join(yaml_dir, f"{model_basename}.yaml")
     replacements = {
         "METADATA_NAME": model_seriesname,
@@ -142,6 +143,7 @@ def main():
     parser.add_argument("--nogpu", action='store_true', help="Use handler with no gpu.")
     parser.add_argument("--tl", action='store_true', help="Use torch load pt file.")
     parser.add_argument("--noarch", action='store_true', help="Use no-archive instead of .mar file.")
+    parser.add_argument("--scaletest", action='store_true', help="Generate scale test yaml.")
     
     args = parser.parse_args()
     model_name = args.model_name
@@ -180,7 +182,13 @@ def main():
         model_basename += "-mar"
         if args.tl:
             model_basename += "-tl"
-    setup_deployment(model_basename, model_seriesname, save_directory, yaml_dir)
+    setup_storage_pod(model_basename, save_directory)
+    
+    template_yaml = os.path.join(yaml_dir, "template.yaml")
+    if args.scaletest:
+        template_yaml = os.path.join(yaml_dir, "template-autoscale.yaml")
+        yaml_dir = os.path.join(yaml_dir, "scale")
+    generate_yaml(model_basename, model_seriesname, template_yaml, yaml_dir)
 
 if __name__ == "__main__":
     main()
