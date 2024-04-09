@@ -6,6 +6,53 @@ import re
 import os
 import csv
 import yaml
+from kserve import KServeClient
+from kserve.models.v1beta1_inference_service import V1beta1InferenceService
+from kserve.models.v1beta1_inference_service_spec import V1beta1InferenceServiceSpec
+from kserve.models.v1beta1_predictor_spec import V1beta1PredictorSpec
+from kserve.models.v1beta1_model_spec import V1beta1ModelSpec
+from kserve.models.v1beta1_model_format import V1beta1ModelFormat
+from kubernetes.client.models import V1ResourceRequirements
+
+def runtime_suffix(runtime):
+    mapping = {"opt": "", "base": "-mar", "baseplus": "-mar-tl"}
+    return mapping[runtime]
+
+def create_service(model_name, runtime):
+    # Load the Kubernetes configuration
+    config.load_kube_config()
+
+    # Define the InferenceService
+    inference_service = V1beta1InferenceService(
+        api_version="serving.kserve.io/v1beta1",
+        kind="InferenceService",
+        metadata=client.V1ObjectMeta(name=get_model_seriesname(model_name), namespace="default"),
+        spec=V1beta1InferenceServiceSpec(
+            predictor=V1beta1PredictorSpec(
+                container_concurrency=1,
+                min_replicas=0,
+                max_replicas=10,
+                model=V1beta1ModelSpec(
+                    model_format=V1beta1ModelFormat(
+                        name="pytorch"
+                    ),
+                    storage_uri=f"pvc://task-pv-claim/{model_name}{runtime_suffix(runtime)}",
+                    resources=V1ResourceRequirements(
+                        limits={"cpu": "2", "memory": "16Gi"},
+                        requests={"cpu": "2", "memory": "16Gi"}
+                    )
+                )
+            )
+        )
+    )
+    # Create the InferenceService using the KServeClient
+    kserve_client = KServeClient()
+    kserve_client.create(inference_service, namespace="default")
+
+def delete_service(model_name):
+    config.load_kube_config()
+    kserve_client = KServeClient()
+    kserve_client.delete(get_model_seriesname(model_name), namespace="default")
 
 def get_model_basename(model_name):
     """
@@ -41,6 +88,13 @@ def get_endpoint_name(model_name):
 
 def us_to_sec(us):
     seconds = us / 1000000
+    return round(seconds, 3)
+
+def ms_to_sec(ms):
+    seconds = ms / 1000
+    return round(seconds, 3)
+
+def sec_to_sec(seconds):
     return round(seconds, 3)
 
 def are_pods_terminating(prefix):
