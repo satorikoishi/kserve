@@ -13,6 +13,7 @@ from kserve.models.v1beta1_predictor_spec import V1beta1PredictorSpec
 from kserve.models.v1beta1_model_spec import V1beta1ModelSpec
 from kserve.models.v1beta1_model_format import V1beta1ModelFormat
 from kubernetes.client.models import V1ResourceRequirements
+from kubernetes.client.exceptions import ApiException
 
 def runtime_suffix(runtime):
     mapping = {"opt": "", "base": "-mar", "baseplus": "-mar-tl"}
@@ -21,12 +22,12 @@ def runtime_suffix(runtime):
 def create_service(model_name, runtime):
     # Load the Kubernetes configuration
     config.load_kube_config()
-
+    model_seriesname = get_model_seriesname(model_name)
     # Define the InferenceService
     inference_service = V1beta1InferenceService(
         api_version="serving.kserve.io/v1beta1",
         kind="InferenceService",
-        metadata=client.V1ObjectMeta(name=get_model_seriesname(model_name), namespace="default"),
+        metadata=client.V1ObjectMeta(name=model_seriesname, namespace="default"),
         spec=V1beta1InferenceServiceSpec(
             predictor=V1beta1PredictorSpec(
                 container_concurrency=1,
@@ -47,12 +48,23 @@ def create_service(model_name, runtime):
     )
     # Create the InferenceService using the KServeClient
     kserve_client = KServeClient()
-    kserve_client.create(inference_service, namespace="default")
-
+    # Avoid conflict
+    existing_services = kserve_client.get(namespace="default")
+    for svc in existing_services['items']:
+        if svc['metadata']['name'] == model_seriesname:
+            delete_service(model_name)
+            time.sleep(1)
+    # Create service
+    kserve_client.create(inference_service, namespace="default", watch=True)
+    print(f"InferenceService {model_seriesname} created.")
+    time.sleep(1)
+    
 def delete_service(model_name):
     config.load_kube_config()
+    model_seriesname = get_model_seriesname(model_name)
     kserve_client = KServeClient()
-    kserve_client.delete(get_model_seriesname(model_name), namespace="default")
+    kserve_client.delete(model_seriesname, namespace="default")
+    wait_for_pods_termination(model_seriesname)
 
 def get_model_basename(model_name):
     """
