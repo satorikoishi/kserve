@@ -214,7 +214,7 @@ def switch_torchserve_config(runtime):
         if image['name'] == 'kserve-torchserve':
             if runtime == 'opt':
                 image['newName'] = 'jwkaguya/torchserve-kfs'
-                image['newTag'] = '0.4.1'
+                image['newTag'] = '0.4.2'
             elif runtime == 'base':
                 image['newName'] = 'pytorch/torchserve-kfs'
                 image['newTag'] = '0.8.2'
