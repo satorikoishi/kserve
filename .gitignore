@@ -72,3 +72,4 @@ model_archive/*
 !/model_archive/requirements
 !/model_archive/sagemaker
 scripts/setup_config.json
+scripts/microtest.py

@@ -23,13 +23,13 @@ full_key_events = ["Storage Init", "Kserve Container Init",
                   "Worker Load Model", 
                   "Service Ready"]
 # opt runtime, parallel events included
-server_required_substrings_sequence=[["When deploying to production, make sure to limit the set of"],
+server_required_substrings_sequence=[["Container starts - first log"],
                                     ["main org.pytorch.serve.snapshot.SnapshotManager", "Started restoring models from snapshot"],
                                     ["[DEBUG] main org.pytorch.serve.wlm.ModelVersionedRefs", "Adding new version"],
                                     ["[INFO ] main org.pytorch.serve.wlm.ModelManager - Model ", "loaded."],
                                     ["org.pytorch.serve.wlm.WorkerThread", "Flushing req.cmd LOAD to backend"],
                                     ["org.pytorch.serve.wlm.WorkerThread - Backend response t"]]
-worker_required_substrings_sequence=[["When deploying to production, make sure to limit the set of"],
+worker_required_substrings_sequence=[["Container starts - first log"],
                                     ["INFO - Transformers version"],
                                     ["Transformer model from path"]]
 server_key_events = ["Storage Init", "Kserve Container Init", 
