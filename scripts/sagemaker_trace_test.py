@@ -45,7 +45,7 @@ async def send_request(endpoint_name, timestamp, payload_text):
 
     resp_content = response["Body"].read().decode('utf-8')
     status_code = response['ResponseMetadata']['HTTPStatusCode']
-    print(resp_content)
+    # print(resp_content)
     print(status_code)
     return timestamp, status_code, sec_to_sec(e2e_latency)
 
