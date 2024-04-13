@@ -95,11 +95,11 @@ async def run_trace():
             set_stable_window(stable_window)
             for model_name in model_list:
                 create_service(model_name, runtime) # TODO: should i wait until scale to zero?
-                model_name = get_model_seriesname(model_name)
+                model_seriesname = get_model_seriesname(model_name)
                 for i, label in enumerate(trace_labels):
                     save_file_name = os.path.join(os.path.dirname(__file__), f"../results/trace/{runtime}-{model_name}-{label}-{stable_window}.csv")
-                    await run_trace_once(model_name, df[i], save_file_name)
-                delete_service(model_name)
+                    await run_trace_once(model_seriesname, df[i], save_file_name)
+                delete_service(model_seriesname)
                 
 if __name__ == "__main__":
     asyncio.run(run_trace())
