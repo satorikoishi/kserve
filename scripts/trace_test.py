@@ -9,7 +9,7 @@ import time
 from utils import switch_torchserve_config, set_stable_window, get_model_seriesname, sec_to_sec, ms_to_sec, create_service, delete_service
 
 model_list = ['flan-t5-large']
-trace_labels = ['Sporadic', 'Bursty', 'Periodic']
+trace_labels = ['Bursty', 'Periodic', 'Sporadic']
 runtime_list = ['opt']
 # runtime_list = ['base', 'baseplus', 'opt']
 stable_window_list = ['1m']

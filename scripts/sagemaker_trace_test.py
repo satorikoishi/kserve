@@ -11,7 +11,7 @@ import boto3
 from botocore.config import Config
 
 model_list = ['flan-t5-base']   # flan-t5-large fails due to insufficient memory
-trace_labels = ['Sporadic', 'Bursty', 'Periodic']
+trace_labels = ['Bursty', 'Periodic', 'Sporadic']
 TIME_INTERVAL = 60.0
 
 MAX_CONCURRENCY = 10
