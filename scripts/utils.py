@@ -230,6 +230,9 @@ def switch_torchserve_config(runtime):
             elif runtime == 'base':
                 image['newName'] = 'pytorch/torchserve-kfs'
                 image['newTag'] = '0.8.2'
+            elif runtime == 'base-gpu':     # Enable GPU inference, without GPU limitation, only for scale test
+                image['newName'] = 'pytorch/torchserve-kfs'
+                image['newTag'] = '0.8.2-gpu'
             else:
                 assert False, f"Unexpected runtime {runtime}"
 
@@ -248,7 +251,7 @@ def switch_torchserve_config(runtime):
             indent = line[:line.index('"enableDirectPvcVolumeMount"')]
             if runtime == 'opt':
                 new_line = f'{indent}"enableDirectPvcVolumeMount": true'
-            elif runtime == 'base':
+            elif runtime == 'base' or runtime == 'base-gpu':
                 new_line = f'{indent}"enableDirectPvcVolumeMount": false'
             else:
                 assert False, f"Unexpected runtime {runtime}"

@@ -90,7 +90,10 @@ async def run_trace():
     df = pd.read_csv(os.path.join(os.path.dirname(__file__), f"../results/trace/chosen_data.csv")).to_numpy()
     df = df[:, 4:]
     for runtime in runtime_list:
-        switch_torchserve_config(runtime)
+        if runtime == 'base' or runtime == 'baseplus':
+            switch_torchserve_config('base-gpu')
+        else:
+            switch_torchserve_config(runtime)
         for stable_window in stable_window_list:
             set_stable_window(stable_window)
             for model_name in model_list:
