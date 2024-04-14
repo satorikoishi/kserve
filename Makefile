@@ -116,7 +116,7 @@ deploy-dev-alibi: docker-push-alibi kustomize
 	${KUSTOMIZE} build config/overlays/dev-image-config | kubectl apply -f -
 
 deploy-dev-storageInitializer: docker-push-storageInitializer kustomize
-	./hack/storageInitializer_patch_dev.sh ${KO_DOCKER_REPO}/${STORAGE_INIT_IMG}
+	./hack/storageInitializer_patch_dev.sh ${KO_DOCKER_REPO}/${STORAGE_INIT_IMG}:1.0
 	${KUSTOMIZE} build config/overlays/dev-image-config | kubectl apply -f -
 
 deploy-ci: manifests
@@ -289,10 +289,10 @@ docker-push-art: docker-build-art
 	docker push ${KO_DOCKER_REPO}/${ART_IMG}
 
 docker-build-storageInitializer:
-	cd python && docker buildx build --build-arg BASE_IMAGE=${BASE_IMG} -t ${KO_DOCKER_REPO}/${STORAGE_INIT_IMG} -f storage-initializer.Dockerfile .
+	cd python && docker buildx build --build-arg BASE_IMAGE=${BASE_IMG} -t ${KO_DOCKER_REPO}/${STORAGE_INIT_IMG}:1.0 -f storage-initializer.Dockerfile .
 
 docker-push-storageInitializer: docker-build-storageInitializer
-	docker push ${KO_DOCKER_REPO}/${STORAGE_INIT_IMG}
+	docker push ${KO_DOCKER_REPO}/${STORAGE_INIT_IMG}:1.0
 
 docker-build-qpext:
 	cd qpext && docker buildx build -t ${KO_DOCKER_REPO}/${QPEXT_IMG} -f qpext.Dockerfile .
