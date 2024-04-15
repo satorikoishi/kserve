@@ -107,6 +107,7 @@ async def run_trace():
         for i, label in enumerate(trace_labels):
             save_file_name = os.path.join(os.path.dirname(__file__), f"../results/trace/sagemaker-{model_name}-{label}.csv")
             await run_trace_once(model_name, df[i], save_file_name, endpoint_name)
-                
+            time.sleep(900)
+               
 if __name__ == "__main__":
     asyncio.run(run_trace())
