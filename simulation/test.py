@@ -178,9 +178,10 @@ def main():
         logger.debug(r)
 
     for runtime in runtimes:
-        nodes = [Node(i, compute_capacity=200, disk_capacity=1000) for i in range(num_nodes)]
-        # models = [Model(i, 200, runtime) for i in range(num_models)]
-        models = [Model(i, np.random.randint(50, 200), runtime) for i in range(num_models)]
+        # Assume 1T disk, 30G compute
+        nodes = [Node(i, compute_capacity=300, disk_capacity=10000) for i in range(num_nodes)]
+        # Model size ranging from 0.5G to 3G
+        models = [Model(i, np.random.randint(5, 30), runtime) for i in range(num_models)]
         logger.debug(models)
         
         system = System(nodes, models)

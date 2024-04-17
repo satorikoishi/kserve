@@ -6,9 +6,10 @@ import logging
 logging.basicConfig(level=logging.INFO, format='%(message)s')
 logger = logging.getLogger()
 
-DOWNLOAD_FACTOR = 100
-COMPUTE_FACTOR = 1
-COLDSTART_FACTOR = {'base': 150, 'baseplus': 70, 'opt': 10}
+# Capacity unit: 0.1G   Time unit: 1ms
+DOWNLOAD_FACTOR = 1000
+COMPUTE_FACTOR = 10
+COLDSTART_FACTOR = {'base': (8000, 6000), 'baseplus': (8000, 2400), 'opt': (2000, 100)}
 STABLE_WINDOW = 60000
 
 class ContainerState(Enum):
@@ -196,7 +197,7 @@ class Model:
         self.model_size = model_size
         self.compute_time = model_size * runtime.compute_factor
         self.download_time = model_size * runtime.download_factor
-        self.coldstart_time = model_size * runtime.coldstart_factor
+        self.coldstart_time = runtime.coldstart_factor[0] + model_size * runtime.coldstart_factor[1]
         self.request_count = 0  # Track how often this model is requested
         
     def __repr__(self) -> str:
