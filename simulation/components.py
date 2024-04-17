@@ -3,10 +3,10 @@ import numpy as np
 from enum import Enum, auto
 import math
 
-DOWNLOAD_FACTOR = 1
-COMPUTE_FACTOR = 0.01
-COLDSTART_FACTOR = {'base': 1.5, 'baseplus': 0.7, 'opt': 0.1}
-STABLE_WINDOW = 60.0
+DOWNLOAD_FACTOR = 100
+COMPUTE_FACTOR = 1
+COLDSTART_FACTOR = {'base': 150, 'baseplus': 70, 'opt': 10}
+STABLE_WINDOW = 60
 
 class ContainerState(Enum):
     RUNNING = auto()
@@ -32,7 +32,7 @@ class Container:
         self.finish_time = self.start_time + STABLE_WINDOW
     
     def __repr__(self) -> str:
-        return f"State {self.state}, start {self.start_time}, finish {self.finish_time}"
+        return f"Model {self.model_id}, state {self.state}, start {self.start_time}, finish {self.finish_time}"
     
 class Node:
     def __init__(self, node_id, compute_capacity, disk_capacity):
@@ -45,10 +45,10 @@ class Node:
     def handle_request(self, model, start_time, hook):
         # Best case, no need to consider capacity or cold start
         if self.model_warm(model.model_id):
-            print(f"Request hit warm start")
+            print(f"{start_time} Request hit warm start")
             c = self.get_warm_container(model.model_id)
             # Cancel delete event
-            print(f"Cancel delete event at {c.finish_time}")
+            print(f"{start_time} Cancel delete event at {c.finish_time}")
             hook.cancel_event(c.finish_time, self.del_container)
             
             # Update container state -> RUNNING
@@ -57,10 +57,10 @@ class Node:
         else:
             # Start new container to handle request
             if model.model_id in self.models:
-                print(f"Request cold start")
+                print(f"{start_time} Request cold start")
                 download_time = 0
             else:
-                print(f"Request download then cold start")
+                print(f"{start_time} Request download then cold start")
                 self.add_model(model.model_id, model.model_size)
                 download_time = model.download_time
             compute_time = model.compute_time
@@ -72,7 +72,7 @@ class Node:
         hook.schedule_event(to_idle_time, self.to_idle_container, c, to_idle_time)
         to_del_time = to_idle_time + STABLE_WINDOW
         hook.schedule_event(to_del_time, self.del_container, c, to_del_time)
-        print(f"Schedule events at {to_idle_time} and {to_del_time}")
+        print(f"{start_time} Schedule events at {to_idle_time} and {to_del_time}")
         return total_latency
 
     def can_host_model(self, model_size):
@@ -116,9 +116,11 @@ class Node:
         return new_container
     
     def to_idle_container(self, container, future_time):
+        print(f"{future_time} Transform container {container} to idle")
         container.to_idle(future_time)
     
     def del_container(self, container, future_time):
+        print(f"{future_time} Delete container {container}")
         assert math.isclose(future_time, container.finish_time)
         model = self.models[container.model_id]
         self.compute_load -= model['size']
@@ -282,8 +284,8 @@ class Runtime:
 #         return chosen_node       
 
 class WorkloadGenerator:
-    def __init__(self, models):
-        self.models = models
+    def __init__(self, num_models):
+        self.num_models = num_models
 
     def generate_requests(self, num_requests, stress_level=1):
         # Adjust the rate and size of requests based on intensity
@@ -292,8 +294,8 @@ class WorkloadGenerator:
         requests = []
         current_time = 0
         for i in range(num_requests):
-            time_to_next_request = round(np.random.exponential(scale=interval), 2)
+            time_to_next_request = round(np.random.exponential(scale=interval * 1000))
             current_time += time_to_next_request
-            model = random.choice(self.models)
-            requests.append(Request(i, model.model_id, current_time))
+            model_id = random.randrange(self.num_models)
+            requests.append(Request(i, model_id, current_time))
         return requests

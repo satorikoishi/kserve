@@ -30,38 +30,39 @@ class System:
         nodes_warm = [node for node in self.nodes if node.model_warm(model.model_id)]
         if nodes_warm:
             chosen_node = max(nodes_warm, key=lambda node: node.remaining_compute_capacity())
-            print(f"WARM node {chosen_node.node_id} for req {req.request_id}")
+            print(f"{self.current_time} WARM node {chosen_node.node_id} for req {req.request_id}")
             return chosen_node
         nodes_available = [node for node in self.nodes if node.remaining_compute_capacity() >= model.model_size]
         if not nodes_available:
-            print(f"No available node for req {req.request_id}")
+            print(f"{self.current_time} No available node for req {req.request_id}")
             return None     # No available nodes, wait for events to make progress
         # Secondary: cold but without download
         nodes_with_model = [node for node in nodes_available if node.model_exist(model.model_id)]
         if nodes_with_model:
             chosen_node = max(nodes_with_model, key=lambda node: node.remaining_compute_capacity())
-            print(f"COLD node {chosen_node.node_id} for req {req.request_id}")
+            print(f"{self.current_time} COLD node {chosen_node.node_id} for req {req.request_id}")
             return chosen_node
         # Third: no node holds the model, download model first (possibly need evict)
         eligible_nodes = [node for node in nodes_available if node.can_host_model(model.model_size)]
         if eligible_nodes:
             chosen_node = max(eligible_nodes, key=lambda node: node.remaining_compute_capacity())
-            print(f"DOWNLOAD node {chosen_node.node_id} for req {req.request_id}")
+            print(f"{self.current_time} DOWNLOAD node {chosen_node.node_id} for req {req.request_id}")
             return chosen_node
         # Worse case: Evict until model size can fit in, then download and cold start
         evict_candidate_nodes = [node for node in nodes_available if node.can_host_model_after_evict(model.model_size)]
         if not evict_candidate_nodes:
-            print(f"No disk space for req {req.request_id}")
+            print(f"{self.current_time} No disk space for req {req.request_id}")
             return None
             # raise Exception("No sufficient disk space for available nodes")   # Must queue
         chosen_node = max(evict_candidate_nodes, key=lambda node: node.remaining_compute_capacity())
         while not chosen_node.can_host_model(model.model_size):
             chosen_node.del_model(chosen_node.get_lru_model())
-        print(f"EVICT MODEL node {chosen_node.node_id} for req {req.request_id}")
+        print(f"{self.current_time} EVICT MODEL node {chosen_node.node_id} for req {req.request_id}")
         return chosen_node
     
     def schedule_event(self, time, callback, *args):
         """ Schedule a new event at the specified time with a callback function. """
+        print(f"{self.current_time} Schedule event {callback.__name__}, at {time}")
         heapq.heappush(self.events, (time, callback, args))
         if time not in self.event_map:
             self.event_map[time] = []
@@ -69,13 +70,16 @@ class System:
     
     def cancel_event(self, time, callback):
         """ Cancel an event. This assumes you can identify the event by time and callback. """
+        print(f"{self.current_time} Cancel event {callback.__name__}, at {time}")
         if time in self.event_map:
             self.event_map[time] = [(cb, args) for (cb, args) in self.event_map[time] if cb != callback]
             if not self.event_map[time]:
                 del self.event_map[time]
                 # Rebuild the heap without the cancelled event
-                self.events = [(t, cb, args) for t, cb, args in heapq.heapify(self.events) if (cb, args) in self.event_map[t]]
-                heapq.heapify(self.events)
+                self.events = []
+                for time, events in self.event_map.items():
+                    for cb, args in events:
+                        heapq.heappush(self.events, (time, cb, args))
         else:
             raise Exception("Cancel event not found")
         
@@ -99,7 +103,7 @@ class System:
                 duration = node.handle_request(self.models[req.model_id], self.current_time, self)
                 latency = self.current_time + duration - req.start_time
                 self.latencies.append(latency)
-                print(f"Duration: {duration}, Latency: {latency}")
+                print(f"{self.current_time} Duration: {duration}, Latency: {latency}")
                 request_index += 1
             else:
                 self.handle_event()
@@ -114,12 +118,18 @@ class System:
     def handle_event(self):
         # Handle next event
         event_time, event_callback, event_args = heapq.heappop(self.events)
-        assert event_time >= self.current_time
+        assert event_time >= self.current_time, f"{event_time}, {self.current_time}, {event_callback}, {event_args}"
         self.current_time = event_time
-        print(f"Handling event, time {self.current_time}")
+        
+        self.event_map[event_time].remove((event_callback, event_args))
+        if not self.event_map[event_time]:
+            del self.event_map[event_time]
+            
+        print(f"{self.current_time} Handling event")
         event_callback(*event_args)
     
     def summarize_results(self):
+        self.latencies = [float(x) / 1000 for x in self.latencies]
         # Basic statistics
         mean_latency = np.mean(self.latencies)
         median_latency = np.median(self.latencies)
@@ -137,21 +147,33 @@ class System:
         results = np.percentile(self.latencies, percentiles_to_calculate)
         
         for percentile, value in zip(percentiles_to_calculate, results):
-            print(f"{percentile}th percentile latency: {value:.2f} ms")
+            print(f"{percentile}th percentile latency: {value:.2f} s")
             
 def main():
+    parser = argparse.ArgumentParser(description="Run a container-based simulation for model request handling.")
+    parser.add_argument('-n', '--num_nodes', type=int, default=2, help='Number of nodes in the simulation.')
+    parser.add_argument('-m', '--num_models', type=int, default=10, help='Number of models.')
+    parser.add_argument('-r', '--num_requests', type=int, default=3, help='Number of requests to generate.')
+    parser.add_argument('-i', '--request_interval', type=int, default=1, help='Interval between generated requests.')
+    
+    args = parser.parse_args()
     print("---------------------------- Start simulation --------------------------")
-    num_nodes = 2
+    num_nodes = args.num_nodes
+    num_models = args.num_models
+    num_requests = args.num_requests
+    request_interval = args.request_interval
+    
     runtimes = [Runtime(name, factor) for name, factor in COLDSTART_FACTOR.items()]
+    generator = WorkloadGenerator(num_models)
+    requests = generator.generate_requests(num_requests, request_interval)
+    for r in requests:
+        print(r)
 
     for runtime in runtimes:
         nodes = [Node(i, compute_capacity=200, disk_capacity=1000) for i in range(num_nodes)]
-        models = [Model(i, 200, runtime) for i in range(10)]
+        models = [Model(i, 200, runtime) for i in range(num_models)]
         # models = [Model(i, np.random.randint(50, 200), runtime) for i in range(20)]
         print(models)
-        generator = WorkloadGenerator(models)
-        requests = generator.generate_requests(3, 1)
-        print(requests)
         
         system = System(nodes, models)
         system.run_simulation(requests)
