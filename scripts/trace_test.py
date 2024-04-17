@@ -10,7 +10,7 @@ from utils import switch_torchserve_config, set_stable_window, get_model_seriesn
 
 model_list = ['flan-t5-base']
 trace_labels = ['Bursty', 'Periodic', 'Sporadic']
-runtime_list = ['opt']
+runtime_list = ['base', 'baseplus']
 # runtime_list = ['base', 'baseplus', 'opt']
 stable_window_list = ['1m']
 TIME_INTERVAL = 60.0
@@ -102,7 +102,7 @@ async def run_trace():
                     create_service(model_name, runtime) # TODO: should i wait until scale to zero?
                     save_file_name = os.path.join(os.path.dirname(__file__), f"../results/trace/{runtime}-{model_name}-{label}-{stable_window}.csv")
                     await run_trace_once(model_seriesname, df[i], save_file_name)
-                    delete_service(model_seriesname)
+                    delete_service(model_name)
                 
 if __name__ == "__main__":
     asyncio.run(run_trace())
