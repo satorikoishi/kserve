@@ -11,6 +11,7 @@ class System:
         self.events = []    # Heap for events
         self.event_map = {} # Map for deleting events
         self.latencies = [] # Collect result
+        self.profiler = Profiler()
         
         for model in self.models:
             self.init_place_model(model)
@@ -31,8 +32,10 @@ class System:
         if nodes_warm:
             chosen_node = max(nodes_warm, key=lambda node: node.remaining_compute_capacity())
             logger.debug(f"{self.current_time} WARM node {chosen_node.node_id} for req {req.request_id}")
+            self.profiler.warm += 1
             return chosen_node
         nodes_available = [node for node in self.nodes if node.remaining_compute_capacity() >= model.model_size]
+        logger.debug(f"{self.current_time} Available nodes: {[node.node_id for node in nodes_available]}")
         if not nodes_available:
             logger.debug(f"{self.current_time} No available node for req {req.request_id}")
             return None     # No available nodes, wait for events to make progress
@@ -41,12 +44,14 @@ class System:
         if nodes_with_model:
             chosen_node = max(nodes_with_model, key=lambda node: node.remaining_compute_capacity())
             logger.debug(f"{self.current_time} COLD node {chosen_node.node_id} for req {req.request_id}")
+            self.profiler.cold += 1
             return chosen_node
         # Third: no node holds the model, download model first (possibly need evict)
         eligible_nodes = [node for node in nodes_available if node.can_host_model(model.model_size)]
         if eligible_nodes:
             chosen_node = max(eligible_nodes, key=lambda node: node.remaining_compute_capacity())
             logger.debug(f"{self.current_time} DOWNLOAD node {chosen_node.node_id} for req {req.request_id}")
+            self.profiler.download += 1
             return chosen_node
         # Worse case: Evict until model size can fit in, then download and cold start
         evict_candidate_nodes = [node for node in nodes_available if node.can_host_model_after_evict(model.model_size)]
@@ -58,6 +63,7 @@ class System:
         while not chosen_node.can_host_model(model.model_size):
             chosen_node.del_model(chosen_node.get_lru_model())
         logger.debug(f"{self.current_time} EVICT MODEL node {chosen_node.node_id} for req {req.request_id}")
+        self.profiler.evict += 1
         return chosen_node
     
     def schedule_event(self, time, callback, *args):
@@ -149,6 +155,8 @@ class System:
         for percentile, value in zip(percentiles_to_calculate, results):
             logger.info(f"{percentile}th percentile latency: {value:.2f} s")
             
+        logger.info(self.profiler)
+            
 def main():
     parser = argparse.ArgumentParser(description="Run a container-based simulation for model request handling.")
     parser.add_argument('-n', '--num_nodes', type=int, default=2, help='Number of nodes in the simulation.')
@@ -171,8 +179,8 @@ def main():
 
     for runtime in runtimes:
         nodes = [Node(i, compute_capacity=200, disk_capacity=1000) for i in range(num_nodes)]
-        models = [Model(i, 200, runtime) for i in range(num_models)]
-        # models = [Model(i, np.random.randint(50, 200), runtime) for i in range(20)]
+        # models = [Model(i, 200, runtime) for i in range(num_models)]
+        models = [Model(i, np.random.randint(50, 200), runtime) for i in range(num_models)]
         logger.debug(models)
         
         system = System(nodes, models)

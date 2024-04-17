@@ -14,6 +14,19 @@ STABLE_WINDOW = 60000
 class ContainerState(Enum):
     RUNNING = auto()
     IDLE = auto()
+
+class Profiler:
+    def __init__(self):
+        self.reset()
+        
+    def __repr__(self) -> str:
+        return f"Warm: {self.warm}, Cold: {self.cold}, Download: {self.download}, Evict: {self.evict}"
+
+    def reset(self):
+        self.warm = 0
+        self.cold = 0
+        self.download = 0
+        self.evict = 0
     
 class Event:
     def __init__(self, event_time, callback, args):
@@ -99,8 +112,9 @@ class Node:
         return model_size <= self.remaining_disk_capacity()
     
     def can_host_model_after_evict(self, model_size):
-        total_model_size = sum(info['size'] for info in self.models.values() if not info['containers'])
-        return total_model_size + model_size <= self.disk_capacity
+        busy_model_size = sum(info['size'] for info in self.models.values() if info['containers'])
+        # logger.debug(f"Node {self.node_id}, Busy size {busy_model_size}, Total size {self.remaining_disk_capacity()}")
+        return busy_model_size + model_size <= self.disk_capacity
     
     def remaining_compute_capacity(self):
         self.check_compute_load()
