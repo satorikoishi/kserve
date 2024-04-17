@@ -1,16 +1,35 @@
 import random
 import numpy as np
 from enum import Enum, auto
-import math
+import logging
+
+logging.basicConfig(level=logging.INFO, format='%(message)s')
+logger = logging.getLogger()
 
 DOWNLOAD_FACTOR = 100
 COMPUTE_FACTOR = 1
 COLDSTART_FACTOR = {'base': 150, 'baseplus': 70, 'opt': 10}
-STABLE_WINDOW = 60
+STABLE_WINDOW = 60000
 
 class ContainerState(Enum):
     RUNNING = auto()
     IDLE = auto()
+    
+class Event:
+    def __init__(self, event_time, callback, args):
+        self.event_time = event_time
+        self.callback = callback
+        self.args = args
+
+    def __lt__(self, other):
+        # Define comparison based on event_time only
+        return self.event_time < other.event_time
+    
+    def __iter__(self):
+        """Allows unpacking like a tuple, yields attributes in a specific order."""
+        yield self.event_time
+        yield self.callback
+        yield self.args
 
 class Container:
     def __init__(self, model_id, state, start_time, finish_time):
@@ -20,13 +39,13 @@ class Container:
         self.finish_time = finish_time
 
     def exec_request(self, start_time, finish_time):
-        assert start_time < self.finish_time and self.state == ContainerState.IDLE
+        assert start_time <= self.finish_time and self.state == ContainerState.IDLE
         self.state = ContainerState.RUNNING
         self.start_time = start_time
         self.finish_time = finish_time
     
     def to_idle(self, current_time):
-        assert math.isclose(current_time, self.finish_time) and self.state == ContainerState.RUNNING
+        assert current_time == self.finish_time and self.state == ContainerState.RUNNING
         self.state = ContainerState.IDLE
         self.start_time = self.finish_time
         self.finish_time = self.start_time + STABLE_WINDOW
@@ -45,11 +64,11 @@ class Node:
     def handle_request(self, model, start_time, hook):
         # Best case, no need to consider capacity or cold start
         if self.model_warm(model.model_id):
-            print(f"{start_time} Request hit warm start")
+            logger.debug(f"{start_time} Request hit warm start")
             c = self.get_warm_container(model.model_id)
             # Cancel delete event
-            print(f"{start_time} Cancel delete event at {c.finish_time}")
-            hook.cancel_event(c.finish_time, self.del_container)
+            logger.debug(f"{start_time} Cancel delete event at {c.finish_time}")
+            hook.cancel_event(c.finish_time, self.del_container, c, c.finish_time)
             
             # Update container state -> RUNNING
             total_latency = model.compute_time
@@ -57,10 +76,10 @@ class Node:
         else:
             # Start new container to handle request
             if model.model_id in self.models:
-                print(f"{start_time} Request cold start")
+                logger.debug(f"{start_time} Request cold start")
                 download_time = 0
             else:
-                print(f"{start_time} Request download then cold start")
+                logger.debug(f"{start_time} Request download then cold start")
                 self.add_model(model.model_id, model.model_size)
                 download_time = model.download_time
             compute_time = model.compute_time
@@ -72,7 +91,7 @@ class Node:
         hook.schedule_event(to_idle_time, self.to_idle_container, c, to_idle_time)
         to_del_time = to_idle_time + STABLE_WINDOW
         hook.schedule_event(to_del_time, self.del_container, c, to_del_time)
-        print(f"{start_time} Schedule events at {to_idle_time} and {to_del_time}")
+        logger.debug(f"{start_time} Schedule events at {to_idle_time} and {to_del_time}")
         return total_latency
 
     def can_host_model(self, model_size):
@@ -116,12 +135,12 @@ class Node:
         return new_container
     
     def to_idle_container(self, container, future_time):
-        print(f"{future_time} Transform container {container} to idle")
+        logger.debug(f"{future_time} Transform container {container} to idle")
         container.to_idle(future_time)
     
     def del_container(self, container, future_time):
-        print(f"{future_time} Delete container {container}")
-        assert math.isclose(future_time, container.finish_time)
+        logger.debug(f"{future_time} Delete container {container}")
+        assert future_time == container.finish_time
         model = self.models[container.model_id]
         self.compute_load -= model['size']
         model['last_access'] = future_time
@@ -206,7 +225,7 @@ class Runtime:
 #             return None
 #         chosen_node = random.choice(eligible_nodes)
 #         chosen_node.add_model(model.model_id, model.model_size)
-#         print(f"Init Model {model} placed to Node {chosen_node.node_id}")
+#         logger.debug(f"Init Model {model} placed to Node {chosen_node.node_id}")
 #         return chosen_node
 
 #     def select_node_for_request(self, system, model_id, model_size, start_time):
@@ -251,7 +270,7 @@ class Runtime:
 #             return None
 #         chosen_node = max(eligible_nodes, key=lambda node: node.remaining_disk_capacity())
 #         chosen_node.add_model(model.model_id, model.model_size)
-#         print(f"Init Model {model} placed to Node {chosen_node.node_id}")
+#         logger.debug(f"Init Model {model} placed to Node {chosen_node.node_id}")
 #         return chosen_node
 
 #     def select_node_for_request(self, system, model_id, model_size, start_time):
