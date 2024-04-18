@@ -2,6 +2,8 @@ from components import *
 import numpy as np
 import argparse
 import heapq
+import csv
+import os
 
 class System:
     def __init__(self, nodes, models):
@@ -134,7 +136,7 @@ class System:
         logger.debug(f"{self.current_time} Handling event")
         event_callback(*event_args)
     
-    def summarize_results(self):
+    def summarize_results(self, num_nodes, num_models, num_requests, stress_level, alpha, save_file):
         self.latencies = [float(x) / 1000 for x in self.latencies]
         # Basic statistics
         mean_latency = np.mean(self.latencies)
@@ -151,31 +153,64 @@ class System:
         
         percentiles_to_calculate = [50, 90, 95, 99]
         results = np.percentile(self.latencies, percentiles_to_calculate)
+        percentile_results = {f"{perc}th percentile": res for perc, res in zip(percentiles_to_calculate, results)}
         
         for percentile, value in zip(percentiles_to_calculate, results):
             logger.info(f"{percentile}th percentile latency: {value:.2f} s")
             
         logger.info(self.profiler)
-            
+        self.profiler.check(num_requests)
+        
+        # Save to csv
+        with open(os.path.join(os.path.dirname(__file__), f"../results/simulation/{save_file}"), 'a') as f:
+            writer = csv.writer(f)
+            if f.tell() == 0:   # Write headers if the file is new/empty
+                headers = ["Num Nodes", "Num Models", "Num Requests", "Stress Level", "Alpha", 
+                           "Mean Latency", "Median Latency", "Min Latency", "Max Latency", "Standard Deviation",
+                           "Warm", "Cold", "Download", "Evict"] + \
+                          [f"{perc}th Percentile" for perc in percentiles_to_calculate]
+                writer.writerow(headers)
+            row = [num_nodes, num_models, num_requests, stress_level, alpha, 
+                   mean_latency, median_latency, min_latency, max_latency, std_deviation,
+                   self.profiler.warm, self.profiler.cold, self.profiler.download, self.profiler.evict] + \
+                [percentile_results[f"{perc}th percentile"] for perc in percentiles_to_calculate]
+            row = [round(x, 2) for x in row]
+            writer.writerow(row)
+        return
+    
 def main():
     parser = argparse.ArgumentParser(description="Run a container-based simulation for model request handling.")
     parser.add_argument('-n', '--num_nodes', type=int, default=2, help='Number of nodes in the simulation.')
     parser.add_argument('-m', '--num_models', type=int, default=10, help='Number of models.')
     parser.add_argument('-r', '--num_requests', type=int, default=3, help='Number of requests to generate.')
-    parser.add_argument('-i', '--request_interval', type=int, default=1, help='Interval between generated requests.')
+    parser.add_argument('-i', '--stress_level', type=float, default=1.0, help='Higher stress level -> lower request interval.')
+    parser.add_argument('-a', '--alpha', type=float, default=1.1, help='Request model skewness.')
+    parser.add_argument('--save_file', type=str, default="summary.csv", help='Saved csv file.')
     
     args = parser.parse_args()
     logger.info("---------------------------- Start simulation --------------------------")
     num_nodes = args.num_nodes
     num_models = args.num_models
     num_requests = args.num_requests
-    request_interval = args.request_interval
+    stress_level = args.stress_level
+    alpha = args.alpha
     
     runtimes = [Runtime(name, factor) for name, factor in COLDSTART_FACTOR.items()]
-    generator = WorkloadGenerator(num_models)
-    requests = generator.generate_requests(num_requests, request_interval)
+    generator = WorkloadGenerator(num_models, alpha)
+    requests = generator.generate_requests(num_requests, stress_level)
     for r in requests:
         logger.debug(r)
+    
+    # model_ids = [req.model_id for req in requests]
+
+    # # Calculate frequency of each model ID
+    # frequency = np.bincount(model_ids, minlength=num_models)
+    # frequency = frequency / np.sum(frequency)  # Normalize frequencies to sum to 1
+
+    # # Print the normalized frequency of each model ID
+    # print("Model ID Frequency Distribution:")
+    # for i, freq in enumerate(frequency):
+    #     print(f"Model {i}: {freq:.4f}")
 
     for runtime in runtimes:
         # Assume 1T disk, 30G compute
@@ -186,7 +221,7 @@ def main():
         
         system = System(nodes, models)
         system.run_simulation(requests)
-        system.summarize_results()
+        system.summarize_results(num_nodes, num_models, num_requests, stress_level, alpha, f"{runtime.name}-{args.save_file}")
 
 if __name__ == "__main__":
     main()

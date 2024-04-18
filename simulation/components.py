@@ -29,6 +29,9 @@ class Profiler:
         self.download = 0
         self.evict = 0
     
+    def check(self, num_requests):
+        assert num_requests == self.warm + self.cold + self.download + self.evict
+    
 class Event:
     def __init__(self, event_time, callback, args):
         self.event_time = event_time
@@ -318,10 +321,11 @@ class Runtime:
 #         return chosen_node       
 
 class WorkloadGenerator:
-    def __init__(self, num_models):
+    def __init__(self, num_models, alpha):
         self.num_models = num_models
+        self.alpha = alpha
 
-    def generate_requests(self, num_requests, stress_level=1):
+    def generate_requests(self, num_requests, stress_level):
         # Adjust the rate and size of requests based on intensity
         interval = 1.0 / stress_level
 
@@ -330,6 +334,9 @@ class WorkloadGenerator:
         for i in range(num_requests):
             time_to_next_request = round(np.random.exponential(scale=interval * 1000))
             current_time += time_to_next_request
-            model_id = random.randrange(self.num_models)
+            if self.alpha < 1:
+                model_id = random.randrange(self.num_models)    # Uniform
+            else:
+                model_id = (np.random.zipf(self.alpha) - 1) % self.num_models   # zipf
             requests.append(Request(i, model_id, current_time))
         return requests
