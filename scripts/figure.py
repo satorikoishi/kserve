@@ -3,7 +3,7 @@ import pandas as pd
 import numpy as np
 import matplotlib.cm as cm
 import os
-from utils import analyze_cprofile
+# from utils import analyze_cprofile
 
 # model_name_list = ["bloom-560m", "bert-large-uncased"]
 model_name_list = ["bloom-560m", 
@@ -349,6 +349,61 @@ def draw_chosen_trace():
     plt.grid(True)
     plt.savefig(os.path.join(save_directory, "evaluation_chosen_trace.png"))
     plt.show()
+    
+def draw_evaluation_trace_test():
+    # Scatter graph
+    for model in ['flan-t5-base']:
+        for trace_label in ['Sporadic', 'Bursty', 'Periodic']:
+            plt.figure(figsize=(10, 5))
+            for runtime in ['opt', 'sagemaker']:
+                if runtime == 'sagemaker':
+                    df = pd.read_csv(os.path.join(os.path.dirname(__file__), f"../results/trace/{runtime}-{model}-{trace_label}.csv"))
+                else:
+                    df = pd.read_csv(os.path.join(os.path.dirname(__file__), f"../results/trace/{runtime}-{model}-{trace_label}-1m.csv"))
+                plt.scatter(df['Timestamp'].to_numpy(), df['E2ELatency'].to_numpy(), alpha=0.5, s=20, label=f"{runtime}-{trace_label}")
+            plt.title(f'{trace_label} E2E Latency Over Time')
+            plt.xlabel('Timestamp (minute)')
+            plt.ylabel('E2E Latency (seconds)')
+            plt.legend()
+            plt.grid(True)
+            plt.show()
+    
+    # CDF
+    for model in ['flan-t5-base']:
+        for trace_label in ['Sporadic', 'Bursty', 'Periodic']:
+            plt.figure(figsize=(10, 5))
+            for runtime in ['opt', 'sagemaker']:
+                if runtime == 'sagemaker':
+                    df = pd.read_csv(os.path.join(os.path.dirname(__file__), f"../results/trace/{runtime}-{model}-{trace_label}.csv"))
+                else:
+                    df = pd.read_csv(os.path.join(os.path.dirname(__file__), f"../results/trace/{runtime}-{model}-{trace_label}-1m.csv"))
+                # Sorting data for CDF
+                sorted_latencies = np.sort(df['E2ELatency'])
+                yvals = np.arange(len(sorted_latencies))/float(len(sorted_latencies)-1)
+                plt.plot(sorted_latencies, yvals, label=runtime)
+            plt.title(f'{trace_label} CDF of E2E Latencies')
+            plt.xlabel('E2E Latency (seconds)')
+            plt.ylabel('CDF')
+            plt.legend()
+            plt.grid(True)
+            plt.show()
+    
+    # Hist graph
+    plt.figure(figsize=(10, 5))
+    for model in ['flan-t5-base']:
+        for trace_label in ['Sporadic', 'Bursty', 'Periodic']:
+            for runtime in ['opt', 'sagemaker']:
+                if runtime == 'sagemaker':
+                    df = pd.read_csv(os.path.join(os.path.dirname(__file__), f"../results/trace/{runtime}-{model}-{trace_label}.csv"))
+                else:
+                    df = pd.read_csv(os.path.join(os.path.dirname(__file__), f"../results/trace/{runtime}-{model}-{trace_label}-1m.csv"))
+                plt.hist(df['E2ELatency'], label=f"{runtime}-{trace_label}")
+    plt.title('E2E Latency Over Time')
+    plt.xlabel('E2E Latency (seconds)')
+    plt.ylabel('Frequency')
+    plt.legend()
+    plt.grid(True)
+    plt.show()
 
 if __name__ == "__main__":
     # draw_motivation()
@@ -358,4 +413,5 @@ if __name__ == "__main__":
     # draw_evaluation_base()
     # draw_inference()
     # draw_resource()
-    draw_chosen_trace()
+    # draw_chosen_trace()
+    draw_evaluation_trace_test()
