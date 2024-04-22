@@ -5,3 +5,4 @@ TorchLoad,1.79
 Pickle,3.6
 MmapTorchLoad,3.74
 Mmap,1.95
+ReadDisk,0.63
