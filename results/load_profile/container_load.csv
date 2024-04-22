@@ -1,0 +1,7 @@
+Method,Time
+Pretrained,83.39
+LoadStateDict,90.35
+TorchLoad,1.79
+Pickle,3.6
+MmapTorchLoad,3.74
+Mmap,1.95
