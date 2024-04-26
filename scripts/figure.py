@@ -4,15 +4,23 @@ import numpy as np
 import matplotlib.cm as cm
 import os
 # from utils import analyze_cprofile
+from matplotlib.ticker import FixedLocator
+import matplotlib
+# matplotlib.use("PDF")
 
 # model_name_list = ["bloom-560m", "bert-large-uncased"]
-model_name_list = ["bloom-560m", 
-                   "flan-t5-small", "flan-t5-base", "flan-t5-large", 
-                   "bert-base-uncased", "bert-large-uncased"]
+model_name_list = ["bert-base-uncased", "bert-large-uncased", 
+                   "flan-t5-small", "flan-t5-base", "flan-t5-large", "bloom-560m"]
 # runtime_config = ["base"]
 full_runtime_config = ["base", "opt"]
-methods = ["Load Pretrained", "Load State Dict", "Torch Load"]
-
+methods = ["Load Pretrained", "Load State Dict"]
+rename_mapping = {
+    'Storage Init': 'Storage Init',
+    'Unzip Model Archive': 'Model Archive Decompression',
+    'Setup Model Dependency': 'Setup Model Dependency',
+    'Worker Load Model': 'Load Model',
+    'Other': 'Others'
+}
 save_directory = os.path.join(os.path.expanduser('~'), "Paper-prototype/Serverless-LLM-serving/figures")
 
 def fetch_data_from_file(runtime_config=full_runtime_config):
@@ -48,28 +56,47 @@ def get_data_fk(df, fk, fv, k):
 
 def draw_cprofile():
     # analyze_cprofile()
+    # Get colors from the viridis colormap
+    viridis = plt.get_cmap('viridis')
+    color_indices = np.linspace(0.1, 0.7, 7)  # Generate seven points from 0 to 1
+    print(color_indices)
+    viridis_colors = [viridis(2 * i) for i in color_indices]  # Map these points to colors in the colormap
+    
     func_color_map = {
-        "TensorBase.copy()": "#FF9999",
-        "TensorBase.uniform()": "#66B3FF",
-        "str.startswith()": "#99FF99",
-        "TensorBase.normal()": "#FFCC99",
-        "load_tensor()": "#FF6666",
-        "TensorBase.set()": "#CCCCFF",
-        "Unpickler.load()": "#66FF66",
-        "Other": "#999999"
+        "TensorBase.copy()": viridis_colors[0],
+        "TensorBase.uniform()": viridis_colors[1],
+        "str.startswith()": viridis_colors[2],
+        "TensorBase.normal()": viridis_colors[3],
+        # "load_tensor()": viridis_colors[4],
+        # "TensorBase.set()": viridis_colors[5],
+        # "Unpickler.load()": viridis_colors[6],
+        "Other": "#999999"  # Grey for 'Other'
+    }
+    func_hatch_map = {
+        "TensorBase.copy()": "//",  # Diagonal hatching
+        "TensorBase.uniform()": "xx",  # Back diagonal
+        "str.startswith()": "--",  # Horizontal lines
+        "TensorBase.normal()": "++",  # Crossed
+        # "load_tensor()": "xx",  # Crossed diagonal
+        # "TensorBase.set()": "..",  # Dotted
+        # "Unpickler.load()": "||",  # Vertical lines
+        "Other": "**"  # Stars
     }
     legend_order = [
         "TensorBase.copy()",
         "TensorBase.uniform()",
         "str.startswith()",
         "TensorBase.normal()",
-        "load_tensor()",
+        # "load_tensor()",
         "Other"
     ]
     legend_labels = set()  # Track which labels have been added to avoid duplicates
     
     cprofile_dir = os.path.join(os.path.dirname(__file__), f"../results/load_profile")
-    fig, ax = plt.subplots(figsize=(10, 7))
+    fig, ax = plt.subplots(figsize=(7, 2))
+    method_mapping = {"Load State Dict": "load_state_dict()", "Load Pretrained": "from_pretrained()"}
+    ypos = range(len(methods))
+    
     for method in methods:
         print(f"Method: {method}")
         cprofile_path = os.path.join(cprofile_dir, f'{method.replace(" ", "").lower()}.csv')
@@ -92,7 +119,8 @@ def draw_cprofile():
             
         print(df)
             
-        bottom=np.zeros(1)
+        left=np.zeros(1)
+        # bottom=np.zeros(1)
         for i, time in enumerate(df['Time']):
             func = df['Func'][i]
             # print(legend_labels)
@@ -100,36 +128,81 @@ def draw_cprofile():
             # print(label)
             if label:
                 legend_labels.add(func)
-            ax.bar(method, time, width=0.5, bottom=bottom, color=func_color_map.get(func, "#000000"), label=label)
-            bottom += time
+            ax.barh(method, time, height=0.3, left=left, color=func_color_map.get(func, "#000000"), hatch=func_hatch_map[func], label=label)
+            # ax.bar(method, time, width=0.5, bottom=bottom, color=func_color_map.get(func, "#000000"), label=label)
+            left += time
+            # bottom += time
+    
+    ax.set_yticks(ypos)
+    ax.set_yticklabels([method_mapping[m] for m in methods])
+    # ax.yaxis.set_major_locator(FixedLocator([0, -0.5]))
     # Manually create legend handles and labels based on the desired order
-    handles = [plt.Rectangle((0,0),1,1, color=func_color_map[func]) for func in legend_order]
+    handles = [plt.Rectangle((0,0),1,1, color=func_color_map[func], hatch=func_hatch_map[func]) for func in legend_order]
     labels = [func for func in legend_order]
     # Adding labels, title, and custom x-axis tick labels
-    ax.set_ylabel('Time (seconds)')
-    ax.set_title('Time Distribution by Method and Function')
-    ax.legend(handles, labels, title='Function')
-    plt.savefig(os.path.join(save_directory, "motivation_cprofile.png"))
+    ax.set_xlabel('Duration (seconds)')
+    # ax.set_title('Time Distribution by Method and Function')
+    ax.legend(handles, labels, loc='upper center', bbox_to_anchor=(0.5, 1.35), ncol=3, frameon=False)
+    # plt.tight_layout(rect=[0, 0, 1, 0.7])
+    # plt.savefig(os.path.join(save_directory, "motivation_cprofile.pdf"), dpi=600)
+    # TODO: fix hatch for pdf, it is a pdf issue
+    plt.savefig(os.path.join(save_directory, "motivation_cprofile.pdf"), bbox_inches='tight', dpi=600, backend='pdf')
     plt.show()
 
 def draw_motivation():
-    model_dataframes, event_order = fetch_data_from_file(["base"])
+    comparison_dir = os.path.join(os.path.dirname(__file__), f"../results/comparison")
+    model_dataframes = {}
+    event_order = []  # Initialize an empty list to store the order of events
+    runtime = "base"
+    for model in model_name_list:
+        data_fname = os.path.join(comparison_dir, f"{runtime}/init-{model}")
+        data_fname += "-mar.csv"
+        df = pd.read_csv(data_fname).set_index('Event')
+        df_filtered = df.drop(['Total', 'Total App'])
+        model_dataframes[f"{model}".capitalize()] = df_filtered['Duration']
+        
+        # If event_order is empty, populate it with the order of events from the first file read
+        if not event_order:
+            event_order = df_filtered.index.tolist()
+                
     # Prepare combined data for stacked bar chart
     combined_df = pd.DataFrame(model_dataframes)
+    # Define the stages to keep
+    stages_to_keep = ['Storage Init', 'Unzip Model Archive', 'Setup Model Dependency', 'Worker Load Model']
+    other_stages = [stage for stage in event_order if stage not in stages_to_keep]
+    combined_df.loc['Other'] = combined_df.loc[other_stages].sum()
     # Reorder DataFrame columns based on the event_order
-    combined_df = combined_df.loc[event_order]
+    combined_df = combined_df.drop(other_stages, errors='ignore')
+    event_order = stages_to_keep + ['Other']
+    combined_df = combined_df.loc[event_order]    
+    combined_df.rename(index=rename_mapping, inplace=True)
     # Transpose the DataFrame for plotting
     combined_df_transposed = combined_df.T
+    combined_df_transposed = combined_df_transposed.iloc[::-1]
+    
+    print(combined_df_transposed)
+    print(combined_df_transposed.index)
+    
+    # Calculate the percentage of each stage
+    percent_df = combined_df_transposed.div(combined_df_transposed.sum(axis=1), axis=0) * 100
+    print("\nPercentage DataFrame:\n", percent_df)
+
+    # Print the percentage of each stage for every model
+    for model in percent_df.index:
+        print(f"\nPercentages for {model}:")
+        for stage, percentage in percent_df.loc[model].items():
+            print(f"{stage}: {percentage:.2f}%")
 
     # Plotting
-    fig, ax = plt.subplots(figsize=(12, 8))
-    combined_df_transposed.plot(kind='bar', stacked=True, ax=ax, colormap=cm.viridis)
-    plt.ylabel('Duration (seconds)')
-    plt.title('Combined Event Durations for Each Model Group')
-    plt.xticks(rotation=45)
-    plt.legend(title='Model', bbox_to_anchor=(1.05, 1), loc='upper left')
+    fig, ax = plt.subplots(figsize=(6, 3))
+    combined_df_transposed.plot(kind='barh', stacked=True, ax=ax, colormap=cm.viridis)
+    plt.xlabel('Duration (seconds)')
+    # plt.title('Combined Event Durations for Each Model Group')
+    # plt.xticks(rotation=45)
+    # plt.yticks(rotation=45)
+    plt.legend(loc='upper right')
     plt.tight_layout()
-    plt.savefig(os.path.join(save_directory, "motivation_latency_composition.png"))
+    plt.savefig(os.path.join(save_directory, "motivation_latency_composition.pdf"), bbox_inches='tight', dpi=600)
     plt.show()
 
 def draw_comparison():
@@ -152,7 +225,7 @@ def draw_comparison():
     plt.xticks(rotation=45)
     plt.legend(title='Model', bbox_to_anchor=(1.05, 1), loc='upper left')
     plt.tight_layout()
-    plt.savefig(os.path.join(save_directory, "misc_model_comparison.png"))
+    plt.savefig(os.path.join(save_directory, "misc_model_comparison.pdf"))
     plt.show()
     
 def draw_sagemaker():
@@ -171,7 +244,7 @@ def draw_sagemaker():
     ax.legend()
     plt.xticks(rotation=45, ha="right")
     plt.tight_layout()
-    plt.savefig(os.path.join(save_directory, "misc_sagemaker.png"))
+    plt.savefig(os.path.join(save_directory, "misc_sagemaker.pdf"))
     plt.show()
     
 def draw_evaluation_base():
@@ -226,7 +299,7 @@ def draw_evaluation_base():
     # Create legend & Show graphic
     ax.legend()
     plt.xticks(rotation=45)
-    plt.savefig(os.path.join(save_directory, "evaluation_comparison_base.png"))
+    plt.savefig(os.path.join(save_directory, "evaluation_comparison_base.pdf"))
     plt.show()
     
 def draw_inference():
@@ -293,7 +366,7 @@ def draw_inference():
 
     plt.xticks(rotation=45)
     plt.tight_layout()
-    plt.savefig(os.path.join(save_directory, "motivation_inference_ratio.png"))
+    plt.savefig(os.path.join(save_directory, "motivation_inference_ratio.pdf"))
     plt.show()
     
 def draw_resource():
@@ -327,7 +400,7 @@ def draw_resource():
     ax.legend()
 
     plt.tight_layout()
-    plt.savefig(os.path.join(save_directory, "motivation_resource_effect.png"))
+    plt.savefig(os.path.join(save_directory, "motivation_resource_effect.pdf"))
     plt.show()
 
 def draw_chosen_trace():
@@ -347,7 +420,7 @@ def draw_chosen_trace():
     plt.ylabel('Activity Level')
     plt.legend()
     plt.grid(True)
-    plt.savefig(os.path.join(save_directory, "evaluation_chosen_trace.png"))
+    plt.savefig(os.path.join(save_directory, "evaluation_chosen_trace.pdf"))
     plt.show()
     
 def draw_evaluation_trace_test():
@@ -408,10 +481,10 @@ def draw_evaluation_trace_test():
 if __name__ == "__main__":
     # draw_motivation()
     # draw_comparison()
-    # draw_cprofile()
+    draw_cprofile()
     # draw_sagemaker()
     # draw_evaluation_base()
     # draw_inference()
     # draw_resource()
     # draw_chosen_trace()
-    draw_evaluation_trace_test()
+    # draw_evaluation_trace_test()
