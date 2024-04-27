@@ -6,7 +6,7 @@ import os
 # from utils import analyze_cprofile
 from matplotlib.ticker import FixedLocator
 import matplotlib
-# matplotlib.use("PDF")
+import seaborn as sns
 
 # model_name_list = ["bloom-560m", "bert-large-uncased"]
 model_name_list = ["bert-base-uncased", "bert-large-uncased", 
@@ -424,67 +424,320 @@ def draw_chosen_trace():
     plt.show()
     
 def draw_evaluation_trace_test():
-    # Scatter graph
-    for model in ['flan-t5-base']:
-        for trace_label in ['Sporadic', 'Bursty', 'Periodic']:
-            plt.figure(figsize=(10, 5))
-            for runtime in ['opt', 'sagemaker']:
-                if runtime == 'sagemaker':
-                    df = pd.read_csv(os.path.join(os.path.dirname(__file__), f"../results/trace/{runtime}-{model}-{trace_label}.csv"))
-                else:
-                    df = pd.read_csv(os.path.join(os.path.dirname(__file__), f"../results/trace/{runtime}-{model}-{trace_label}-1m.csv"))
-                plt.scatter(df['Timestamp'].to_numpy(), df['E2ELatency'].to_numpy(), alpha=0.5, s=20, label=f"{runtime}-{trace_label}")
-            plt.title(f'{trace_label} E2E Latency Over Time')
-            plt.xlabel('Timestamp (minute)')
+    runtimes_trace = ['base', 'baseplus', 'opt', 'sagemaker']
+    models = ['flan-t5-base']
+    trace_labels = ['Sporadic', 'Bursty', 'Periodic']
+    runtime_order = ['opt', 'base', 'baseplus', 'sagemaker']  # Desired order
+    runtime_names = {
+        'opt': 'FaLLServe',
+        'base':'KServe',
+        'sagemaker': 'Sagemaker',
+        'baseplus': 'KServe+'
+    }
+    markers = {
+        'opt': 'o',
+        'base':'s',
+        'baseplus': 'x',
+        'sagemaker': 'v'
+    }
+    # Preparing data
+    data = {}
+    for model in models:
+        for trace_label in trace_labels:
+            for runtime in runtimes_trace:
+                file_suffix = "" if runtime == 'sagemaker' else "-1m"
+                file_path = f"../results/trace/{runtime}-{model}-{trace_label}{file_suffix}.csv"
+                full_path = os.path.join(os.path.dirname(__file__), file_path)
+                df = pd.read_csv(full_path)
+                data[(model, trace_label, runtime)] = df
+    
+    def count_and_analyze_non_200_status_codes(data):
+        analysis_results = {}
+        for key, df in data.items():
+            total_requests = df.shape[0]
+            non_200_count = df[df['StatusCode'] != 200].shape[0]
+            if total_requests > 0:  # Prevent division by zero
+                non_200_percentage = (non_200_count / total_requests) * 100
+            else:
+                non_200_percentage = 0
+            analysis_results[key] = (non_200_count, non_200_percentage, total_requests)
+        return analysis_results
+    def replace_non_200_with_max_latency(data):
+        for key, df in data.items():
+            if 'opt' in key:
+                continue
+            # Find the overall maximum latency
+            max_overall_latency = df['E2ELatency'].max()
+            print(f"Key {key}: Max Overall Latency = {max_overall_latency}")
+            
+            # Check if there are any non-200 entries first
+            if not df[df['StatusCode'] != 200].empty:
+                max_non_200_latency = df[df['StatusCode'] != 200]['E2ELatency'].max()
+                print(f"Key {key}: Max Non-200 Latency = {max_non_200_latency}")
+
+                # Replace non-200 latencies with the overall maximum found
+                df.loc[df['StatusCode'] != 200, 'E2ELatency'] = max_overall_latency
+    def print_percentile_latencies(data):
+        percentiles = [50, 90, 99]  # Define the percentiles you want to calculate
+        for key, df in data.items():
+            # Calculate the specified percentiles for the 'E2ELatency' column
+            p_values = np.percentile(df['E2ELatency'], percentiles)
+            
+            print(f"Key {key}:")
+            # print(df['E2ELatency'].describe())
+            for percentile, value in zip(percentiles, p_values):
+                print(f"  P{percentile} Latency: {value:.2f} seconds")
+    def plot_percentile_comparison(data):
+        percentiles = [50, 90, 99]
+        percentile_data = []
+
+        trace_data = {}
+        for key, df in data.items():
+            model, trace_label, runtime = key
+            # Calculate percentiles
+            p_values = np.percentile(df['E2ELatency'], percentiles)
+            # Organize data for plotting
+            if trace_label not in trace_data:
+                trace_data[trace_label] = []
+            trace_data[trace_label].append({
+                'Runtime': runtime,
+                'P50': p_values[0],
+                'P90': p_values[1],
+                'P99': p_values[2]
+            })
+
+        # Plot each trace label's data
+        for trace_label, entries in trace_data.items():
+            runtime_labels = [entry['Runtime'] for entry in entries]
+            latencies = [entry['P90'] for entry in entries]
+            lower_errors = [entry['P90'] - entry['P50'] for entry in entries]
+            upper_errors = [entry['P99'] - entry['P90'] for entry in entries]
+
+            fig, ax = plt.subplots()
+            ax.bar(runtime_labels, latencies, yerr=[lower_errors, upper_errors], capsize=5)
+            ax.set_title(f'90th Percentile Latencies with Error Bars for {trace_label}')
+            ax.set_xlabel('Runtime')
+            ax.set_ylabel('Latency (seconds)')
+            plt.show()
+    def plot_aggregated_scatter(data, models, trace_labels, runtimes_trace, interval=10, aggregation_func=np.mean):
+        # Set up a larger figure to hold all subplots
+        fig, axes = plt.subplots(nrows=1, ncols=len(trace_labels), figsize=(18, 5), sharey=True)
+        # Labels for each subplot as requested
+        subplot_titles = ['(a) Sporadic', '(b) Periodic', '(c) Bursty']
+        desired_order = ['FaLLServe', 'KServe', 'KServe+', 'Sagemaker']
+        
+        for index, trace_label in enumerate(trace_labels):
+            for model in models:
+                # plt.figure(figsize=(8, 4))
+                
+                for runtime in runtimes_trace:
+                    df = data[(model, trace_label, runtime)]
+                    
+                    # Ensure 'Timestamp' is in a datetime format if not already
+                    df['Interval'] = (df['Timestamp'] // interval) * interval
+                    
+                    # Resample and aggregate
+                    df_aggregated = df.groupby('Interval')['E2ELatency'].agg(aggregation_func).reset_index()
+
+                    axes[index].scatter(df_aggregated['Interval'], df_aggregated['E2ELatency'], alpha=0.5, s=20, label=runtime_names[runtime], marker=markers[runtime])
+                
+                # plt.title(f'{trace_label} E2E Latency Over Time (Aggregated by {aggregation_func.__name__.title()})')
+                axes[index].set_title(subplot_titles[index], y=-0.2)
+                axes[index].set_xlabel('Time (minutes)')
+                if index == 0:
+                    axes[index].set_ylabel('E2E Latency (seconds)')
+        # Adjust layout
+        plt.tight_layout()
+        plt.legend()
+        # Place a common legend above the figure
+        handles, labels = axes[0].get_legend_handles_labels()
+        legend_order = {label: handle for handle, label in zip(handles, labels)}
+        ordered_handles = [legend_order[label] for label in desired_order if label in legend_order]
+
+        fig.legend(ordered_handles, desired_order, loc='upper center', ncol=len(desired_order), bbox_to_anchor=(0.5, 1.05), fontsize='large', frameon=False)
+        # Hide individual legends from each subplot
+        for ax in axes:
+            ax.legend().set_visible(False)  # This ensures no subplot-specific legends are shown
+
+        plt.savefig(os.path.join(save_directory, f"evaluation_trace_scatter_summary.pdf"), bbox_inches='tight', dpi=600)
+        plt.show()
+    
+    # Analyze data
+    analysis_results = count_and_analyze_non_200_status_codes(data)
+    for key, (count, percentage, total) in analysis_results.items():
+        print(f"{key}: {count} requests returned a non-200 status code, which is {percentage:.2f}% of {total} requests.")
+    replace_non_200_with_max_latency(data)
+    print_percentile_latencies(data)
+    # plot_percentile_comparison(data)
+    plot_aggregated_scatter(data, models, trace_labels, runtimes_trace, 10, lambda x: np.percentile(x, 90))
+    exit(0)
+    
+    # Violin plot
+    for trace_label in trace_labels:
+        # Prepare data for the plot
+        box_data = []
+        for runtime in runtimes_trace:
+            df = data[(model, trace_label, runtime)]
+            df['Runtime'] = runtime  # Add a 'Runtime' column to distinguish data in the plot
+            # Rename and reorder data according to the new setup
+            df['Runtime'] = df['Runtime'].map(runtime_names)
+            box_data.append(df)
+        combined_df = pd.concat(box_data)
+        # Ensure that the DataFrame uses the new runtime order
+        category_order = [runtime_names[runtime] for runtime in runtime_order]
+        combined_df['Runtime'] = pd.Categorical(combined_df['Runtime'], categories=category_order, ordered=True)
+        
+        if trace_label == 'Sporadic':
+            # Generate the violin plot for Sporadic workflow
+            plt.figure(figsize=(5, 3))
+            sns.violinplot(x='Runtime', y='E2ELatency', data=combined_df, order=category_order, inner=None)
+            plt.xlabel('')
             plt.ylabel('E2E Latency (seconds)')
-            plt.legend()
-            plt.grid(True)
+            plt.savefig(os.path.join(save_directory, f"evaluation_trace_{trace_label}.pdf"), bbox_inches='tight', dpi=600)
+            plt.show()
+        else:
+            # Calculate percentiles for bar chart with error bars
+            p50 = combined_df.groupby('Runtime')['E2ELatency'].quantile(0.50)
+            p90 = combined_df.groupby('Runtime')['E2ELatency'].quantile(0.90)
+            p99 = combined_df.groupby('Runtime')['E2ELatency'].quantile(0.99)
+            
+            # Calculate errors
+            error_lower = p90 - p50
+            error_upper = p99 - p90
+            
+            plt.figure(figsize=(5, 3))
+            plt.bar(p90.index, p90, yerr=[error_lower.values, error_upper.values], capsize=5, color='skyblue')
+            # Set y-axis to logarithmic scale
+            plt.yscale('log')
+            plt.xlabel('')
+            plt.ylabel('E2E Latency (seconds)')
+            # plt.title(f'{trace_label} Latency with Error Bars (P90 with P50, P99)')
+            plt.savefig(os.path.join(save_directory, f"evaluation_trace_{trace_label}.pdf"), bbox_inches='tight', dpi=600)
             plt.show()
     
-    # CDF
-    for model in ['flan-t5-base']:
-        for trace_label in ['Sporadic', 'Bursty', 'Periodic']:
-            plt.figure(figsize=(10, 5))
-            for runtime in ['opt', 'sagemaker']:
-                if runtime == 'sagemaker':
-                    df = pd.read_csv(os.path.join(os.path.dirname(__file__), f"../results/trace/{runtime}-{model}-{trace_label}.csv"))
-                else:
-                    df = pd.read_csv(os.path.join(os.path.dirname(__file__), f"../results/trace/{runtime}-{model}-{trace_label}-1m.csv"))
-                # Sorting data for CDF
-                sorted_latencies = np.sort(df['E2ELatency'])
-                yvals = np.arange(len(sorted_latencies))/float(len(sorted_latencies)-1)
-                plt.plot(sorted_latencies, yvals, label=runtime)
-            plt.title(f'{trace_label} CDF of E2E Latencies')
-            plt.xlabel('E2E Latency (seconds)')
-            plt.ylabel('CDF')
-            plt.legend()
-            plt.grid(True)
-            plt.show()
+    # # Recommended Plots
+    # for trace_label in trace_labels:
+    #     fig, axes = plt.subplots(nrows=1, ncols=3, figsize=(18, 6), sharey=True)
+    #     fig.suptitle(f'Comparison of Runtimes for {model} with Trace: {trace_label}')
+
+    #     # Prepare data for plots
+    #     box_data = []
+    #     for runtime in runtimes_trace:
+    #         df = data[(model, trace_label, runtime)]
+    #         df['Runtime'] = runtime
+    #         box_data.append(df)
+    #     combined_df = pd.concat(box_data)
+        
+    #     # Box Plot
+    #     axes[0].set_title('Box Plot of E2E Latency')
+    #     sns.boxplot(ax=axes[0], x='Runtime', y='E2ELatency', data=combined_df)
+    #     axes[0].set_xlabel('Runtime')
+    #     axes[0].set_ylabel('E2E Latency (seconds)')
+
+    #     # Violin Plot
+    #     axes[1].set_title('Violin Plot of E2E Latency')
+    #     sns.violinplot(ax=axes[1], x='Runtime', y='E2ELatency', data=combined_df)
+    #     axes[1].set_xlabel('Runtime')
+
+    #     # # Line Plot
+    #     # axes[2].set_title('E2E Latency Over Time')
+    #     # for runtime in runtimes_trace:
+    #     #     df = data[(model, trace_label, runtime)]
+    #     #     sns.lineplot(ax=axes[2], x=df['Timestamp'].to_numpy(), y=df['E2ELatency'].to_numpy(), data=df, label=runtime)
+    #     # axes[2].set_xlabel('Timestamp (minute)')
+    #     # axes[2].set_ylabel('E2E Latency (seconds)')
+        
+    #     # axes[2].legend(title='Runtime')
+
+    #     plt.tight_layout(rect=[0, 0.03, 1, 0.95])
+    #     plt.show()
+        
+    # # Scatter graph
+    # for model in models:
+    #     for trace_label in trace_labels:
+    #         plt.figure(figsize=(10, 5))
+    #         for runtime in runtimes_trace:
+    #             df = data[(model, trace_label, runtime)]
+    #             plt.scatter(df['Timestamp'].to_numpy(), df['E2ELatency'].to_numpy(), alpha=0.5, s=20, label=f"{runtime}-{trace_label}")
+    #         plt.title(f'{trace_label} E2E Latency Over Time')
+    #         plt.xlabel('Timestamp (minute)')
+    #         plt.ylabel('E2E Latency (seconds)')
+    #         plt.legend()
+    #         plt.grid(True)
+    #         plt.show()
     
-    # Hist graph
-    plt.figure(figsize=(10, 5))
-    for model in ['flan-t5-base']:
-        for trace_label in ['Sporadic', 'Bursty', 'Periodic']:
-            for runtime in ['opt', 'sagemaker']:
-                if runtime == 'sagemaker':
-                    df = pd.read_csv(os.path.join(os.path.dirname(__file__), f"../results/trace/{runtime}-{model}-{trace_label}.csv"))
-                else:
-                    df = pd.read_csv(os.path.join(os.path.dirname(__file__), f"../results/trace/{runtime}-{model}-{trace_label}-1m.csv"))
-                plt.hist(df['E2ELatency'], label=f"{runtime}-{trace_label}")
-    plt.title('E2E Latency Over Time')
-    plt.xlabel('E2E Latency (seconds)')
-    plt.ylabel('Frequency')
-    plt.legend()
-    plt.grid(True)
+    # # CDF
+    # for model in models:
+    #     for trace_label in trace_labels:
+    #         plt.figure(figsize=(10, 5))
+    #         for runtime in runtimes_trace:
+    #             df = data[(model, trace_label, runtime)]
+    #             # Sorting data for CDF
+    #             sorted_latencies = np.sort(df['E2ELatency'])
+    #             yvals = np.arange(len(sorted_latencies))/float(len(sorted_latencies)-1)
+    #             plt.plot(sorted_latencies, yvals, label=runtime)
+    #         plt.title(f'{trace_label} CDF of E2E Latencies')
+    #         plt.xlabel('E2E Latency (seconds)')
+    #         plt.ylabel('CDF')
+    #         plt.legend()
+    #         plt.grid(True)
+    #         plt.show()
+    
+    # # Hist graph
+    # plt.figure(figsize=(10, 5))
+    # for model in models:
+    #     for trace_label in trace_labels:
+    #         for runtime in runtimes_trace:
+    #             if runtime == 'sagemaker':
+    #                 df = pd.read_csv(os.path.join(os.path.dirname(__file__), f"../results/trace/{runtime}-{model}-{trace_label}.csv"))
+    #             else:
+    #                 df = pd.read_csv(os.path.join(os.path.dirname(__file__), f"../results/trace/{runtime}-{model}-{trace_label}-1m.csv"))
+    #             plt.hist(df['E2ELatency'], label=f"{runtime}-{trace_label}")
+    # plt.title('E2E Latency Over Time')
+    # plt.xlabel('E2E Latency (seconds)')
+    # plt.ylabel('Frequency')
+    # plt.legend()
+    # plt.grid(True)
+    # plt.show()
+    
+def draw_evaluation_performance_breakdown():
+    # Sample data
+    data = {
+        'Version': ['V1', 'V2', 'V3', 'V4'],
+        'Execution Time': [240, 220, 180, 150],  # Execution time decreases
+        'Memory Usage': [1200, 1100, 1000, 900]  # Memory usage decreases
+    }
+
+    # Create a figure and a set of subplots
+    fig, ax1 = plt.subplots()
+
+    # Bar plot for execution time
+    color = 'tab:blue'
+    ax1.set_xlabel('Version')
+    ax1.set_ylabel('Execution Time (seconds)', color=color)
+    ax1.bar(data['Version'], data['Execution Time'], color=color)
+    ax1.tick_params(axis='y', labelcolor=color)
+
+    # Create a twin Axes sharing the x-axis for memory usage
+    ax2 = ax1.twinx()  
+    color = 'tab:red'
+    ax2.set_ylabel('Memory Usage (MB)', color=color)
+    ax2.plot(data['Version'], data['Memory Usage'], color=color, marker='o')
+    ax2.tick_params(axis='y', labelcolor=color)
+
+    # Title and show the plot
+    plt.title('Optimization Effects Over Versions')
+    fig.tight_layout()  # Adjust layout to make room
     plt.show()
 
 if __name__ == "__main__":
     # draw_motivation()
     # draw_comparison()
-    draw_cprofile()
+    # draw_cprofile()
     # draw_sagemaker()
     # draw_evaluation_base()
     # draw_inference()
     # draw_resource()
     # draw_chosen_trace()
-    # draw_evaluation_trace_test()
+    draw_evaluation_trace_test()
+    # draw_evaluation_performance_breakdown()
