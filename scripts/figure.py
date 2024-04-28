@@ -21,6 +21,15 @@ rename_mapping = {
     'Worker Load Model': 'Load Model',
     'Other': 'Others'
 }
+runtime_order = ['opt', 'base', 'baseplus', 'sagemaker']  # Desired order
+runtime_names = {
+    'opt': 'FaLLServe',
+    'base':'KServe',
+    'sagemaker': 'Sagemaker',
+    'baseplus': 'KServe+'
+}
+desired_order = ['FaLLServe', 'KServe', 'KServe+', 'Sagemaker']
+
 save_directory = os.path.join(os.path.expanduser('~'), "Paper-prototype/Serverless-LLM-serving/figures")
 
 def fetch_data_from_file(runtime_config=full_runtime_config):
@@ -427,13 +436,6 @@ def draw_evaluation_trace_test():
     runtimes_trace = ['base', 'baseplus', 'opt', 'sagemaker']
     models = ['flan-t5-base']
     trace_labels = ['Sporadic', 'Bursty', 'Periodic']
-    runtime_order = ['opt', 'base', 'baseplus', 'sagemaker']  # Desired order
-    runtime_names = {
-        'opt': 'FaLLServe',
-        'base':'KServe',
-        'sagemaker': 'Sagemaker',
-        'baseplus': 'KServe+'
-    }
     markers = {
         'opt': 'o',
         'base':'s',
@@ -479,14 +481,73 @@ def draw_evaluation_trace_test():
                 df.loc[df['StatusCode'] != 200, 'E2ELatency'] = max_overall_latency
     def print_percentile_latencies(data):
         percentiles = [50, 90, 99]  # Define the percentiles you want to calculate
+        results = {}
         for key, df in data.items():
             # Calculate the specified percentiles for the 'E2ELatency' column
             p_values = np.percentile(df['E2ELatency'], percentiles)
+            results[key] = p_values
             
             print(f"Key {key}:")
             # print(df['E2ELatency'].describe())
             for percentile, value in zip(percentiles, p_values):
                 print(f"  P{percentile} Latency: {value:.2f} seconds")
+            
+        # Now print results and calculate reductions compared to 'opt'
+        for key, p_values in results.items():
+            print(f"Key {key}:")
+            for percentile, value in zip(percentiles, p_values):
+                print(f"  P{percentile} Latency: {value:.2f} seconds")
+            
+            # If not the 'opt' configuration, compare and print reduction
+            if key[-1] != 'opt':
+                opt_key = (*key[:-1], 'opt')  # Create a new key for the 'opt' configuration
+                if opt_key in results:
+                    opt_values = results[opt_key]
+                    print("  Compared to 'opt':")
+                    for percentile, (opt_value, current_value) in zip(percentiles, zip(opt_values, p_values)):
+                        if opt_value > 0:  # Avoid division by zero
+                            reduction = (current_value / opt_value)
+                            print(f"    P{percentile}: {reduction:.1f}X faster")
+    def calculate_cold_start_ratio(data):
+        cold_start_ratios = {}
+        for key, df in data.items():
+            # Calculate the 90th percentile latency as the threshold for cold starts
+            max_latency = df['E2ELatency'].max()
+            threshold = max_latency * 0.20
+            # Count how many latencies are above this threshold
+            cold_starts = df[df['E2ELatency'] > threshold]
+            cold_start_count = cold_starts.shape[0]
+            total_requests = df.shape[0]
+            # Calculate the ratio
+            cold_start_ratio = (cold_start_count / total_requests) * 100 if total_requests > 0 else 0
+            cold_start_ratios[key] = cold_start_ratio
+            print(f"Key {key}: Cold Start Ratio = {cold_start_ratio:.2f}% (Threshold: {threshold:.2f} seconds)")
+        return cold_start_ratios
+    def plot_cold_start_ratio(cold_start_ratios):
+        # Convert dictionary into a DataFrame
+        data_items = [(trace, cfg, cs_ratio) for (model, trace, cfg), cs_ratio in cold_start_ratios.items()]
+        df = pd.DataFrame(data_items, columns=['Trace', 'Configuration', 'Cold Start Ratio'])
+        df['Configuration'] = df['Configuration'].map(runtime_names)
+        df['Trace'] = pd.Categorical(df['Trace'], categories=trace_labels, ordered=True)
+
+        # Pivot the data to get configurations as columns
+        pivot_df = df.pivot(index="Trace", columns="Configuration", values="Cold Start Ratio")
+        pivot_df = pivot_df[desired_order]
+        
+        # Plotting
+        fig, ax = plt.subplots(figsize=(10, 6))
+        pivot_df.plot(kind='bar', ax=ax, rot=0, width=0.8)
+
+        # Customization for better readability
+        ax.set_xlabel("", fontsize=12)
+        ax.set_ylabel("Cold Start Ratio (%)", fontsize=12)
+        # ax.set_title("Cold Start Ratios by Configuration and Trace Type", fontsize=15)
+        ax.legend()
+
+        plt.tight_layout()
+        plt.savefig(os.path.join(save_directory, f"evaluation_trace_cold_start.pdf"), bbox_inches='tight', dpi=900)
+        plt.show()
+    
     def plot_percentile_comparison(data):
         percentiles = [50, 90, 99]
         percentile_data = []
@@ -521,10 +582,11 @@ def draw_evaluation_trace_test():
             plt.show()
     def plot_aggregated_scatter(data, models, trace_labels, runtimes_trace, interval=10, aggregation_func=np.mean):
         # Set up a larger figure to hold all subplots
-        fig, axes = plt.subplots(nrows=1, ncols=len(trace_labels), figsize=(18, 5), sharey=True)
+        fig, axes = plt.subplots(nrows=1, ncols=len(trace_labels), figsize=(12, 4), sharey=True)
         # Labels for each subplot as requested
-        subplot_titles = ['(a) Sporadic', '(b) Periodic', '(c) Bursty']
-        desired_order = ['FaLLServe', 'KServe', 'KServe+', 'Sagemaker']
+        subplot_titles = ['(a) Sporadic', '(b) Bursty', '(c) Periodic']
+        
+        scatter_objects = {}
         
         for index, trace_label in enumerate(trace_labels):
             for model in models:
@@ -538,11 +600,11 @@ def draw_evaluation_trace_test():
                     
                     # Resample and aggregate
                     df_aggregated = df.groupby('Interval')['E2ELatency'].agg(aggregation_func).reset_index()
-
-                    axes[index].scatter(df_aggregated['Interval'], df_aggregated['E2ELatency'], alpha=0.5, s=20, label=runtime_names[runtime], marker=markers[runtime])
+                    
+                    scatter_objects[runtime] = axes[index].scatter(df_aggregated['Interval'], df_aggregated['E2ELatency'], alpha=0.5, s=20, label=runtime_names[runtime], marker=markers[runtime])
                 
                 # plt.title(f'{trace_label} E2E Latency Over Time (Aggregated by {aggregation_func.__name__.title()})')
-                axes[index].set_title(subplot_titles[index], y=-0.2)
+                axes[index].set_title(subplot_titles[index], y=-0.25)
                 axes[index].set_xlabel('Time (minutes)')
                 if index == 0:
                     axes[index].set_ylabel('E2E Latency (seconds)')
@@ -551,15 +613,16 @@ def draw_evaluation_trace_test():
         plt.legend()
         # Place a common legend above the figure
         handles, labels = axes[0].get_legend_handles_labels()
-        legend_order = {label: handle for handle, label in zip(handles, labels)}
-        ordered_handles = [legend_order[label] for label in desired_order if label in legend_order]
-
-        fig.legend(ordered_handles, desired_order, loc='upper center', ncol=len(desired_order), bbox_to_anchor=(0.5, 1.05), fontsize='large', frameon=False)
+        large_markers = [
+            plt.Line2D([], [], marker=markers[key], markersize=10, linestyle='None', color=scatter_objects[key].get_facecolor()[0]) 
+            for key in runtime_order if key in scatter_objects
+        ]
+        fig.legend(large_markers, [runtime_names[runtime] for runtime in runtime_order if runtime_names[runtime] in labels], loc='upper center', ncol=len(runtime_order), bbox_to_anchor=(0.5, 1.08), fontsize='large', frameon=False)
         # Hide individual legends from each subplot
         for ax in axes:
             ax.legend().set_visible(False)  # This ensures no subplot-specific legends are shown
 
-        plt.savefig(os.path.join(save_directory, f"evaluation_trace_scatter_summary.pdf"), bbox_inches='tight', dpi=600)
+        plt.savefig(os.path.join(save_directory, f"evaluation_trace_scatter_summary.pdf"), bbox_inches='tight', dpi=900)
         plt.show()
     
     # Analyze data
@@ -568,9 +631,10 @@ def draw_evaluation_trace_test():
         print(f"{key}: {count} requests returned a non-200 status code, which is {percentage:.2f}% of {total} requests.")
     replace_non_200_with_max_latency(data)
     print_percentile_latencies(data)
+    cold_start_ratios = calculate_cold_start_ratio(data)
+    plot_cold_start_ratio(cold_start_ratios)
     # plot_percentile_comparison(data)
-    plot_aggregated_scatter(data, models, trace_labels, runtimes_trace, 10, lambda x: np.percentile(x, 90))
-    exit(0)
+    plot_aggregated_scatter(data, models, trace_labels, runtimes_trace, 20, lambda x: np.percentile(x, 90))
     
     # Violin plot
     for trace_label in trace_labels:
@@ -700,6 +764,51 @@ def draw_evaluation_trace_test():
     # plt.grid(True)
     # plt.show()
     
+def draw_evaluation_simulation():
+    data = {}
+    for runtime in ['opt', 'base', 'baseplus']:
+        path = os.path.join(os.path.dirname(__file__), f"../results/simulation/{runtime}-summary.csv")
+        data[runtime] = pd.read_csv(path)
+    print(data)
+    
+    num_nodes = [2, 20, 200, 2000]
+    num_models = [1000, 10000, 100000]
+    num_requests = [1000, 100000]
+    stress_levels = [0.2, 1, 10]
+    alphas = [0, 1.1, 1.6, 2.2, 4]
+    
+    for num_node in num_nodes:
+        for num_model in num_models:
+            for num_request in num_requests:
+                print(f"Num node: {num_node}, Num model: {num_model}")
+                # Create subplots
+                fig, axes = plt.subplots(nrows=len(alphas), ncols=len(stress_levels), figsize=(15, 10), sharex=True, sharey=True)
+                fig.suptitle('Mean Latency Across Stress Levels and Alphas')
+
+                # Loop over each subplot
+                for i, alpha in enumerate(alphas):
+                    for j, stress_level in enumerate(stress_levels):
+                        ax = axes[i][j]  # Select the appropriate subplot
+                        for runtime, df in data.items():
+                            config_filter = (df['Num Nodes'] == num_node) & \
+                                        (df['Num Models'] == num_model) & \
+                                        (df['Num Requests'] == num_request) & \
+                                        (df['Stress Level'] == stress_level) & \
+                                        (df['Alpha'] == alpha)
+                            filtered_df = df[config_filter]
+                            if not filtered_df.empty:
+                                ax.plot(filtered_df['Timestamp'].to_numpy(), filtered_df['Mean Latency'].to_numpy(), label=f'{runtime}')
+
+                        ax.set_title(f'Alpha: {alpha}, Stress: {stress_level}')
+                        ax.set_xlabel('Timestamp')
+                        ax.set_ylabel('Mean Latency (ms)')
+                        if i == 0 and j == 0:  # Add a legend in the first subplot
+                            ax.legend()
+
+                # Adjust layout and display
+                plt.tight_layout(rect=[0, 0.03, 1, 0.95])
+                plt.show()           
+    
 def draw_evaluation_performance_breakdown():
     # Sample data
     data = {
@@ -740,4 +849,5 @@ if __name__ == "__main__":
     # draw_resource()
     # draw_chosen_trace()
     draw_evaluation_trace_test()
+    # draw_evaluation_simulation()
     # draw_evaluation_performance_breakdown()
