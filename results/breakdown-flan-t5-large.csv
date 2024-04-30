@@ -1,0 +1,5 @@
+Version,Latency
+No optimization,146.07
++ Custom Deserialization,56.95
++ Direct Load,14.13
++ Advanced Workflow,5.3

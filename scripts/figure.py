@@ -855,33 +855,35 @@ def draw_evaluation_simulation():
                 plt.show()           
     
 def draw_evaluation_performance_breakdown():
-    # Sample data
-    data = {
-        'Version': ['V1', 'V2', 'V3', 'V4'],
-        'Execution Time': [240, 220, 180, 150],  # Execution time decreases
-        'Memory Usage': [1200, 1100, 1000, 900]  # Memory usage decreases
-    }
+    path = os.path.join(os.path.dirname(__file__), f"../results/breakdown-flan-t5-large.csv")
+    df = pd.read_csv(path)
+    
+    print(df)
+    # Extracting data from DataFrame
+    versions = df['Version'].tolist()
+    latencies = df['Latency'].tolist()
+    
+    # Calculate percentage reductions
+    reductions = [0]  # No reduction for the first element
+    for i in range(1, len(latencies)):
+        reduction = (latencies[i-1] - latencies[i]) / latencies[i-1] * 100
+        reductions.append(reduction)
+    
+    # Create a bar chart
+    plt.figure(figsize=(8, 3))
+    plt.plot(versions, latencies, marker='o', linestyle='-', color='b', label='Latency (s)')
+    
+    for i, (x, y, reduction) in enumerate(zip(versions, latencies, reductions)):
+        label = f'- {reduction:.1f}%' if i != 0 else ''
+        plt.annotate(label, (x, y), textcoords="offset points", xytext=(0,10), ha='center')
 
-    # Create a figure and a set of subplots
-    fig, ax1 = plt.subplots()
-
-    # Bar plot for execution time
-    color = 'tab:blue'
-    ax1.set_xlabel('Version')
-    ax1.set_ylabel('Execution Time (seconds)', color=color)
-    ax1.bar(data['Version'], data['Execution Time'], color=color)
-    ax1.tick_params(axis='y', labelcolor=color)
-
-    # Create a twin Axes sharing the x-axis for memory usage
-    ax2 = ax1.twinx()  
-    color = 'tab:red'
-    ax2.set_ylabel('Memory Usage (MB)', color=color)
-    ax2.plot(data['Version'], data['Memory Usage'], color=color, marker='o')
-    ax2.tick_params(axis='y', labelcolor=color)
-
-    # Title and show the plot
-    plt.title('Optimization Effects Over Versions')
-    fig.tight_layout()  # Adjust layout to make room
+    # plt.xlabel('Version')
+    plt.ylabel('Latency (s)')
+    # plt.title('Performance Breakdown of FLAN-T5 Large Model')
+    plt.yscale('log')  # Optional: Log scale to better visualize differences
+    # plt.grid(True, which="both", ls="--", linewidth=0.5)
+    
+    plt.savefig(os.path.join(save_directory, f"evaluation_performance_breakdown.pdf"), bbox_inches='tight', dpi=600)
     plt.show()
 
 if __name__ == "__main__":
@@ -890,9 +892,9 @@ if __name__ == "__main__":
     # draw_cprofile()
     # draw_sagemaker()
     # draw_evaluation_base()
-    draw_inference()
+    # draw_inference()
     # draw_resource()
     # draw_chosen_trace()
     # draw_evaluation_trace_test()
     # draw_evaluation_simulation()
-    # draw_evaluation_performance_breakdown()
+    draw_evaluation_performance_breakdown()
