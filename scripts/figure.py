@@ -259,56 +259,81 @@ def draw_sagemaker():
 def draw_evaluation_base():
     sagemaker_path = os.path.join(os.path.dirname(__file__), f"../results/sagemaker/init-summary.csv")
     sagemaker_df = pd.read_csv(sagemaker_path)
-    sagemaker_df['Total'] = sagemaker_df['ModelLatency'] + sagemaker_df['OverheadLatency']
+    sagemaker_df['Total'] = sagemaker_df['E2ELatency']
+    # sagemaker_df['Total'] = sagemaker_df['ModelLatency'] + sagemaker_df['OverheadLatency']
     
-    base_list = []
-    opt_list = []
-    sagemaker_list = []
+    df_lists = {'base': [], 'baseplus': [], 'opt': [], 'sagemaker': []}
     for model in model_name_list:
         base_init_path = os.path.join(os.path.dirname(__file__), f"../results/comparison", f"base/init-{model}-mar.csv")
+        baseplus_init_path = os.path.join(os.path.dirname(__file__), f"../results/comparison", f"baseplus/init-{model}-mar-tl.csv")
         opt_init_path = os.path.join(os.path.dirname(__file__), f"../results/comparison", f"opt/init-{model}.csv")
         
         base_df = pd.read_csv(base_init_path)
+        baseplus_df = pd.read_csv(baseplus_init_path)
         opt_df = pd.read_csv(opt_init_path)
-        base_list.append(base_df.loc[base_df['Event'] == 'Total', 'Duration'].iloc[0])
-        opt_list.append(opt_df.loc[opt_df['Event'] == 'Total App', 'Duration'].iloc[0])
+        df_lists['base'].append(base_df.loc[base_df['Event'] == 'Total', 'Duration'].iloc[0])
+        df_lists['baseplus'].append(baseplus_df.loc[baseplus_df['Event'] == 'Total', 'Duration'].iloc[0])
+        df_lists['opt'].append(opt_df.loc[opt_df['Event'] == 'Total App', 'Duration'].iloc[0])
         
         matched_rows = sagemaker_df.loc[sagemaker_df['Model Name'] == model]
         if not matched_rows.empty:
-            sagemaker_list.append(matched_rows['Total'].values[0])
+            df_lists['sagemaker'].append(matched_rows['Total'].values[0])
         else:
-            sagemaker_list.append(0)
-    print(base_list)
-    print(opt_list)
-    print(sagemaker_list)
+            df_lists['sagemaker'].append(0)
+    print(df_lists)
+    print(model_name_list)
     
-    # Plotting
-    fig, ax = plt.subplots(figsize=(10, 7))
+    # Compare other runtimes to 'opt' runtime
+    comparison_results = {key: [] for key in df_lists if key != 'opt'}
+    for model_index, model in enumerate(model_name_list):
+        opt_runtime = df_lists['opt'][model_index]
+        for key in comparison_results:
+            if df_lists[key][model_index] != 0:  # Ensure there is a valid value
+                comparison_results[key].append(df_lists[key][model_index] / opt_runtime)
+            else:
+                comparison_results[key].append(None)  # Handle cases where there is no data
 
-    # Define bar width
-    bar_width = 0.25
+    # Printing the comparisons
+    print("Comparisons of cold start latencies to 'opt' for each model:")
+    for key in comparison_results:
+        print(f"\n{key} compared to opt:")
+        for model_index, model in enumerate(model_name_list):
+            if comparison_results[key][model_index] is not None:
+                print(f"{model}: {comparison_results[key][model_index]:.2f}x")
+            else:
+                print(f"{model}: No data available")
+    
+    fig, ax = plt.subplots(figsize=(5, 4))
+    index = np.arange(len(model_name_list))
+    bar_width = 0.2
+    opacity = 0.8
 
-    # Set position of bar on X axis
-    r1 = np.arange(len(base_list))
-    r2 = [x + bar_width for x in r1]
-    r3 = [x + bar_width for x in r2]
+    # Generate bars for each runtime
+    bars = []
+    for i, runtime in enumerate(runtime_order):
+        bars.append(ax.bar(index + i * bar_width, df_lists[runtime], bar_width, alpha=opacity, label=runtime_names[runtime]))
 
-    # Make the plot
-    ax.bar(r1, opt_list, color='b', width=bar_width, edgecolor='grey', label='FaServe')
-    ax.bar(r2, base_list, color='r', width=bar_width, edgecolor='grey', label='KServe')
-    ax.bar(r3, sagemaker_list, color='g', width=bar_width, edgecolor='grey', label='SageMaker')
-
-    # Add xticks on the middle of the group bars
-    ax.set_xlabel('Model', fontweight='bold')
-    ax.set_ylabel('Duration (seconds)', fontweight='bold')
-    ax.set_title('Evaluation Comparison by Model')
-    ax.set_xticks([r + bar_width for r in range(len(base_list))])
-    ax.set_xticklabels(model_name_list)
-
-    # Create legend & Show graphic
+    # # Adding the number on the bars
+    # for bar in bars:
+    #     for rect in bar:
+    #         height = rect.get_height()
+    #         ax.annotate('{}'.format(height),
+    #                     xy=(rect.get_x() + rect.get_width() / 2, height),
+    #                     xytext=(0, 3),  # 3 points vertical offset
+    #                     textcoords="offset points",
+    #                     ha='center', va='bottom')
+            
+    # Add labels, title, and custom x-axis tick labels, etc.
+    # ax.set_xlabel('Model')
+    ax.set_ylabel('Cold Start Latency (s)')
+    # ax.set_title('Model Latency Comparison by Runtime')
+    ax.set_xticks(index + 1.5 * bar_width)
+    ax.set_xticklabels([x.capitalize() for x in model_name_list], rotation=45)
     ax.legend()
-    plt.xticks(rotation=45)
-    plt.savefig(os.path.join(save_directory, "evaluation_comparison_base.pdf"))
+
+    # Display the plot
+    plt.tight_layout()
+    plt.savefig(os.path.join(save_directory, "evaluation_comparison_base.pdf"), bbox_inches='tight', dpi=900)
     plt.show()
     
 def draw_inference():
@@ -330,7 +355,7 @@ def draw_inference():
     print(inf_list)
     print(load_list)
     
-    fig, ax1 = plt.subplots(figsize=(10, 7))
+    fig, ax1 = plt.subplots(figsize=(5, 3))
     
     # Calculate the ratio of load latency to inference latency for each model
     latency_ratio = [load / inference for load, inference in zip(load_list, inf_list)]
@@ -348,8 +373,8 @@ def draw_inference():
 
     # Setting the y-axis to log scale for latency values
     ax1.set_yscale('log')
-    ax1.set_xlabel('Model', fontweight='bold')
-    ax1.set_ylabel('Latency (seconds)', fontweight='bold')
+    # ax1.set_xlabel('Model', fontweight='bold')
+    ax1.set_ylabel('Latency (s)', fontweight='bold')
 
     # Second y-axis for the ratio
     ax2 = ax1.twinx()
@@ -364,18 +389,18 @@ def draw_inference():
 
     
     # Setting the title, adjusting the x-axis, and adding legend
-    ax1.set_title('Inference and Load Latency Comparison by Model')
+    # ax1.set_title('Inference and Load Latency Comparison by Model')
     ax1.set_xticks([r + bar_width/2 for r in r1])
-    ax1.set_xticklabels(model_name_list)
+    ax1.set_xticklabels([x.capitalize() for x in model_name_list], rotation=45)
 
     # Combining legends from both axes
     lines, labels = ax1.get_legend_handles_labels()
     lines2, labels2 = ax2.get_legend_handles_labels()
     ax2.legend(lines + lines2, labels + labels2, loc='upper left')
 
-    plt.xticks(rotation=45)
+    # plt.xticks(rotation=45)    
     plt.tight_layout()
-    plt.savefig(os.path.join(save_directory, "motivation_inference_ratio.pdf"))
+    plt.savefig(os.path.join(save_directory, "motivation_inference_ratio.pdf"), bbox_inches='tight', dpi=900)
     plt.show()
     
 def draw_resource():
@@ -415,7 +440,7 @@ def draw_resource():
 def draw_chosen_trace():
     df = pd.read_csv(os.path.join(os.path.dirname(__file__), f"../results/trace/chosen_data.csv")).to_numpy()
     df = df[:, 4:]
-    plt.figure(figsize=(20, 8))
+    plt.figure(figsize=(5, 2))
 
     # Generating data for 1440 minutes (24 hours)
     minutes = np.arange(1, 1441)
@@ -424,12 +449,12 @@ def draw_chosen_trace():
     plt.plot(minutes, df[1], label='Bursty', alpha=0.7)
     plt.plot(minutes, df[2], label='Periodic', alpha=0.7)
 
-    plt.title('Workload Patterns Over 24 Hours')
+    # plt.title('Workload Patterns Over 24 Hours')
     plt.xlabel('Minute of Day')
-    plt.ylabel('Activity Level')
+    plt.ylabel('# Requests / min')
     plt.legend()
     plt.grid(True)
-    plt.savefig(os.path.join(save_directory, "evaluation_chosen_trace.pdf"))
+    plt.savefig(os.path.join(save_directory, "evaluation_chosen_trace.pdf"), bbox_inches='tight', dpi=900)
     plt.show()
     
 def draw_evaluation_trace_test():
@@ -508,12 +533,18 @@ def draw_evaluation_trace_test():
                         if opt_value > 0:  # Avoid division by zero
                             reduction = (current_value / opt_value)
                             print(f"    P{percentile}: {reduction:.1f}X faster")
+    
     def calculate_cold_start_ratio(data):
         cold_start_ratios = {}
         for key, df in data.items():
             # Calculate the 90th percentile latency as the threshold for cold starts
-            max_latency = df['E2ELatency'].max()
-            threshold = max_latency * 0.20
+            threshold = np.percentile(df['E2ELatency'], 20) * 3
+            # threshold = df['E2ELatency'].max() * 0.2
+            # if 'sagemaker' in key:
+            #     threshold = 4.32
+            # else:
+            #     threshold = 0.33
+            
             # Count how many latencies are above this threshold
             cold_starts = df[df['E2ELatency'] > threshold]
             cold_start_count = cold_starts.shape[0]
@@ -522,7 +553,20 @@ def draw_evaluation_trace_test():
             cold_start_ratio = (cold_start_count / total_requests) * 100 if total_requests > 0 else 0
             cold_start_ratios[key] = cold_start_ratio
             print(f"Key {key}: Cold Start Ratio = {cold_start_ratio:.2f}% (Threshold: {threshold:.2f} seconds)")
+        factors = {}
+        for key, ratio in cold_start_ratios.items():
+            if 'opt' in key:
+                continue
+            opt_key = (*key[:-1], 'opt')
+            factor = ratio / cold_start_ratios[opt_key]
+            if key[2] not in factors.keys():
+                factors[key[2]] = []
+            factors[key[2]].append(factor)
+            print(f'Key {key}: Factor with opt = {factor}')                
+        for key, ratio_ls in factors.items():
+            print(f'Baseline: {key}, average_factor: {np.mean(ratio_ls)}')
         return cold_start_ratios
+    
     def plot_cold_start_ratio(cold_start_ratios):
         # Convert dictionary into a DataFrame
         data_items = [(trace, cfg, cs_ratio) for (model, trace, cfg), cs_ratio in cold_start_ratios.items()]
@@ -535,8 +579,8 @@ def draw_evaluation_trace_test():
         pivot_df = pivot_df[desired_order]
         
         # Plotting
-        fig, ax = plt.subplots(figsize=(10, 6))
-        pivot_df.plot(kind='bar', ax=ax, rot=0, width=0.8)
+        fig, ax = plt.subplots(figsize=(5, 2))
+        pivot_df.plot(kind='bar', ax=ax, rot=0, width=0.8, alpha=0.8)
 
         # Customization for better readability
         ax.set_xlabel("", fontsize=12)
@@ -580,9 +624,10 @@ def draw_evaluation_trace_test():
             ax.set_xlabel('Runtime')
             ax.set_ylabel('Latency (seconds)')
             plt.show()
+            
     def plot_aggregated_scatter(data, models, trace_labels, runtimes_trace, interval=10, aggregation_func=np.mean):
         # Set up a larger figure to hold all subplots
-        fig, axes = plt.subplots(nrows=1, ncols=len(trace_labels), figsize=(12, 4), sharey=True)
+        fig, axes = plt.subplots(nrows=1, ncols=len(trace_labels), figsize=(12, 3), sharey=True)
         # Labels for each subplot as requested
         subplot_titles = ['(a) Sporadic', '(b) Bursty', '(c) Periodic']
         
@@ -604,7 +649,7 @@ def draw_evaluation_trace_test():
                     scatter_objects[runtime] = axes[index].scatter(df_aggregated['Interval'], df_aggregated['E2ELatency'], alpha=0.5, s=20, label=runtime_names[runtime], marker=markers[runtime])
                 
                 # plt.title(f'{trace_label} E2E Latency Over Time (Aggregated by {aggregation_func.__name__.title()})')
-                axes[index].set_title(subplot_titles[index], y=-0.25)
+                axes[index].set_title(subplot_titles[index], y=-0.4)
                 axes[index].set_xlabel('Time (minutes)')
                 if index == 0:
                     axes[index].set_ylabel('E2E Latency (seconds)')
@@ -845,9 +890,9 @@ if __name__ == "__main__":
     # draw_cprofile()
     # draw_sagemaker()
     # draw_evaluation_base()
-    # draw_inference()
+    draw_inference()
     # draw_resource()
     # draw_chosen_trace()
-    draw_evaluation_trace_test()
+    # draw_evaluation_trace_test()
     # draw_evaluation_simulation()
     # draw_evaluation_performance_breakdown()
