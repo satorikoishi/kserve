@@ -28,6 +28,12 @@ runtime_names = {
     'sagemaker': 'Sagemaker',
     'baseplus': 'KServe+'
 }
+markers = {
+    'opt': 'o',
+    'base':'d',
+    'baseplus': 'x',
+    'sagemaker': 'v'
+}
 desired_order = ['FaLLServe', 'KServe', 'KServe+', 'Sagemaker']
 
 save_directory = os.path.join(os.path.expanduser('~'), "Paper-prototype/Serverless-LLM-serving/figures")
@@ -461,12 +467,6 @@ def draw_evaluation_trace_test():
     runtimes_trace = ['base', 'baseplus', 'opt', 'sagemaker']
     models = ['flan-t5-base']
     trace_labels = ['Sporadic', 'Bursty', 'Periodic']
-    markers = {
-        'opt': 'o',
-        'base':'s',
-        'baseplus': 'x',
-        'sagemaker': 'v'
-    }
     # Preparing data
     data = {}
     for model in models:
@@ -811,48 +811,126 @@ def draw_evaluation_trace_test():
     
 def draw_evaluation_simulation():
     data = {}
-    for runtime in ['opt', 'base', 'baseplus']:
+    simulation_runtime = ['opt', 'base', 'baseplus']
+    for runtime in simulation_runtime:
         path = os.path.join(os.path.dirname(__file__), f"../results/simulation/{runtime}-summary.csv")
-        data[runtime] = pd.read_csv(path)
+        df1 = pd.read_csv(path)
+        add_path = os.path.join(os.path.dirname(__file__), f"../results/simulation/{runtime}-add.csv")
+        df2 = pd.read_csv(add_path)
+        data[runtime] = pd.concat([df1, df2])
     print(data)
     
-    num_nodes = [2, 20, 200, 2000]
-    num_models = [1000, 10000, 100000]
-    num_requests = [1000, 100000]
-    stress_levels = [0.2, 1, 10]
-    alphas = [0, 1.1, 1.6, 2.2, 4]
+    def plot_overview(data):
+        num_nodes = [2, 20, 200, 2000]
+        # num_nodes = [2, 20, 200, 2000]
+        num_models = [1000, 10000, 100000]
+        num_requests = [100000]
+        # num_requests = [1000, 100000]
+        stress_levels = [0.2, 1, 10]
+        alphas = [0, 1.1, 1.6, 2.2, 4]
+        
+        # Define subplot dimensions based on number of scenarios
+        num_plots = len(num_nodes) * len(num_models) * len(num_requests) * len(stress_levels)
+        subplot_cols = 3
+        subplot_rows = (num_plots + subplot_cols - 1) // subplot_cols  # Compute rows needed
+        
+        fig, axes = plt.subplots(subplot_rows, subplot_cols, figsize=(subplot_cols * 10, subplot_rows * 6))
+        flat_axes = axes.flatten()
+        plot_idx = 0
+        
+        for node in num_nodes:
+            for model in num_models:
+                for request in num_requests:
+                    for stress in stress_levels:
+                        ax = flat_axes[plot_idx]
+                        plot_idx += 1
+                        # Plotting
+                        # plt.figure(figsize=(10, 6))
+                        for runtime in simulation_runtime:
+                            df = data[runtime]
+                            # Filter data for current setting
+                            plot_data = df[(df['Num Nodes'] == node) & (df['Num Models'] == model) &
+                                        (df['Num Requests'] == request) & (df['Stress Level'] == stress)]
+                            
+                            alpha_vals = []
+                            p90_vals = []
+                            p99_vals = []
+                            for alpha in alphas:
+                                subset = plot_data[plot_data['Alpha'] == alpha]
+                                if not subset.empty:
+                                    median_values = subset['90th Percentile']
+                                    lower_errors = median_values - subset['50th Percentile']
+                                    upper_errors = subset['99th Percentile'] - median_values
+
+                                    ax.errorbar(x=subset['Alpha'].values, y=median_values.values, yerr=[lower_errors.values, upper_errors.values],
+                                                fmt='-o', color='black')
+                                    # Collecting data to plot 90th percentile as lines
+                                    alpha_vals.append(alpha)
+                                    p90_vals.append(subset['90th Percentile'].values[0])
+                                    p99_vals.append(subset['99th Percentile'].values[0])
+                                    
+                                    # Print Download case
+                                    total_download = subset['Download'].values[0] + subset['Evict'].values[0]
+                                    warm_percent = subset['Warm'].values[0] / subset['Num Requests'].values[0] * 100
+                                    cold_percent = subset['Cold'].values[0] / subset['Num Requests'].values[0] * 100
+                                    download_percent = total_download / subset['Num Requests'].values[0] * 100
+                                    # if download_percent > 1:
+                                    #     print(f'Runtime: {runtime}, Node: {node}, Model: {model}, Request: {request}, Stress: {stress}, Alpha: {alpha}. Download percent: {download_percent:.2f}%')
+                                    print(f'Runtime: {runtime}, Node: {node}, Model: {model}, Request: {request}, Stress: {stress}, Alpha: {alpha}. Warm percent: {warm_percent:.2f}%. Cold percent: {cold_percent:.2f}%. Download percent: {download_percent:.2f}%.')
+                                    
+                            # Plotting 90th percentile as a line
+                            # ax.plot(alpha_vals, p90_vals, '-D', label=f'{runtime}-90th Percentile')
+                            ax.plot(alpha_vals, p99_vals, f'-{markers[runtime]}', label=f'{runtime}-99th Percentile')
+                            
+                        ax.set_xlabel('Alpha')
+                        ax.set_ylabel('Latency Percentiles')
+                        ax.set_title(f'Node: {node}, Model: {model}, Request: {request}, Stress: {stress}')
+                        ax.legend()
+                        ax.grid(True)
+        plt.tight_layout()
+        plt.savefig(os.path.join(save_directory, f"evaluation_simulation_overview.pdf"), bbox_inches='tight', dpi=600)
+        plt.show()
+    # plot_overview(data)
     
-    for num_node in num_nodes:
-        for num_model in num_models:
-            for num_request in num_requests:
-                print(f"Num node: {num_node}, Num model: {num_model}")
-                # Create subplots
-                fig, axes = plt.subplots(nrows=len(alphas), ncols=len(stress_levels), figsize=(15, 10), sharex=True, sharey=True)
-                fig.suptitle('Mean Latency Across Stress Levels and Alphas')
-
-                # Loop over each subplot
-                for i, alpha in enumerate(alphas):
-                    for j, stress_level in enumerate(stress_levels):
-                        ax = axes[i][j]  # Select the appropriate subplot
-                        for runtime, df in data.items():
-                            config_filter = (df['Num Nodes'] == num_node) & \
-                                        (df['Num Models'] == num_model) & \
-                                        (df['Num Requests'] == num_request) & \
-                                        (df['Stress Level'] == stress_level) & \
-                                        (df['Alpha'] == alpha)
-                            filtered_df = df[config_filter]
-                            if not filtered_df.empty:
-                                ax.plot(filtered_df['Timestamp'].to_numpy(), filtered_df['Mean Latency'].to_numpy(), label=f'{runtime}')
-
-                        ax.set_title(f'Alpha: {alpha}, Stress: {stress_level}')
-                        ax.set_xlabel('Timestamp')
-                        ax.set_ylabel('Mean Latency (ms)')
-                        if i == 0 and j == 0:  # Add a legend in the first subplot
-                            ax.legend()
-
-                # Adjust layout and display
-                plt.tight_layout(rect=[0, 0.03, 1, 0.95])
-                plt.show()           
+    num_nodes = [2, 20, 200, 2000]
+    num_models = [100000]
+    num_requests = [100000]
+    alphas = [1.1, 2.2]
+    
+    for model in num_models:
+        for request in num_requests:
+            for alpha in alphas:
+                plt.figure(figsize=(5, 2))
+                for runtime in simulation_runtime:
+                    df = data[runtime]
+                    p90_vals = []
+                    p50_vals = []
+                    p99_vals = []
+                    nodes = []
+                    for node in num_nodes:
+                        stress = node / 20
+                        plot_data = df[(df['Num Nodes'] == node) & (df['Num Models'] == model) & (df['Alpha'] == alpha)
+                                        & (df['Num Requests'] == request) & (df['Stress Level'] == stress)]
+                        p90_vals.append(plot_data['90th Percentile'].values[0])
+                        p50_vals.append(plot_data['50th Percentile'].values[0])
+                        p99_vals.append(plot_data['99th Percentile'].values[0])
+                        nodes.append(str(node))
+                        
+                        total_download = plot_data['Download'].values[0] + plot_data['Evict'].values[0]
+                        warm_percent = plot_data['Warm'].values[0] / plot_data['Num Requests'].values[0] * 100
+                        cold_percent = plot_data['Cold'].values[0] / plot_data['Num Requests'].values[0] * 100
+                        download_percent = total_download / plot_data['Num Requests'].values[0] * 100
+                        print(f'Runtime: {runtime}, Node: {node}, Model: {model}, Request: {request}, Stress: {stress}, Alpha: {alpha}. Warm percent: {warm_percent:.2f}%. Cold percent: {cold_percent:.2f}%. Download percent: {download_percent:.2f}%.')
+                    errors = [p90_vals[i] - p50_vals[i] for i in range(len(p90_vals))], [p99_vals[i] - p90_vals[i] for i in range(len(p90_vals))]
+                    plt.errorbar(nodes, p90_vals, yerr=errors, fmt=f'-{markers[runtime]}', label=runtime_names[runtime], capsize=5)
+            
+                plt.xlabel('# Nodes')
+                plt.ylabel('Latency (s)')
+                plt.legend()
+                # plt.grid(True)
+                plt.tight_layout()
+                plt.savefig(os.path.join(save_directory, f"evaluation_simulation_alpha{alpha}.pdf"), bbox_inches='tight', dpi=600)
+                plt.show()
     
 def draw_evaluation_performance_breakdown():
     path = os.path.join(os.path.dirname(__file__), f"../results/breakdown-flan-t5-large.csv")
@@ -896,5 +974,5 @@ if __name__ == "__main__":
     # draw_resource()
     # draw_chosen_trace()
     # draw_evaluation_trace_test()
-    # draw_evaluation_simulation()
-    draw_evaluation_performance_breakdown()
+    draw_evaluation_simulation()
+    # draw_evaluation_performance_breakdown()
