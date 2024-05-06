@@ -897,6 +897,21 @@ def draw_evaluation_simulation():
     num_requests = [100000]
     alphas = [1.1, 2.2]
     
+    opt_subset = None
+    for alpha in alphas:
+        for runtime in simulation_runtime:
+            if runtime == 'opt':
+                df = data['opt']
+                opt_subset = df[(df['Num Nodes'] == 2000) & (df['Num Models'] == 100000) & (df['Alpha'] == alpha)
+                            & (df['Num Requests'] == 100000) & (df['Stress Level'] == 100)]
+                continue
+            df = data[runtime]
+            subset = df[(df['Num Nodes'] == 2000) & (df['Num Models'] == 100000) & (df['Alpha'] == alpha)
+                            & (df['Num Requests'] == 100000) & (df['Stress Level'] == 100)]
+            p90_opt = subset['90th Percentile'].values[0] / opt_subset['90th Percentile'].values[0]
+            p99_opt = subset['99th Percentile'].values[0] / opt_subset['99th Percentile'].values[0]
+            print(f'Runtime: {runtime}, Alpha: {alpha}. P90: {p90_opt}, P99: {p99_opt}')
+    
     for model in num_models:
         for request in num_requests:
             for alpha in alphas:
