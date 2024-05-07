@@ -654,7 +654,7 @@ def draw_evaluation_trace_test():
             ax.bar(runtime_labels, latencies, yerr=[lower_errors, upper_errors], capsize=5)
             ax.set_title(f'90th Percentile Latencies with Error Bars for {trace_label}')
             ax.set_xlabel('Runtime')
-            ax.set_ylabel('Latency (seconds)')
+            ax.set_ylabel('Latency (s)')
             plt.show()
             
     def plot_aggregated_scatter(data, models, trace_labels, runtimes_trace, interval=10, aggregation_func=np.mean):
@@ -684,7 +684,7 @@ def draw_evaluation_trace_test():
                 axes[index].set_title(subplot_titles[index], y=-0.4, fontproperties=font_props)
                 axes[index].set_xlabel('Time (minutes)')
                 if index == 0:
-                    axes[index].set_ylabel('E2E Latency (seconds)')
+                    axes[index].set_ylabel('E2E Latency (s)')
         # Adjust layout
         plt.tight_layout()
         plt.legend()
@@ -1077,7 +1077,7 @@ if __name__ == "__main__":
     # draw_evaluation_base()
     # draw_inference()
     # draw_resource()
-    draw_chosen_trace()
-    # draw_evaluation_trace_test()
+    # draw_chosen_trace()
+    draw_evaluation_trace_test()
     # draw_evaluation_simulation()
     # draw_evaluation_performance_breakdown()
