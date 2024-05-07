@@ -364,7 +364,7 @@ def draw_evaluation_base():
 
     # Display the plot
     plt.tight_layout()
-    plt.savefig(os.path.join(save_directory, "evaluation_comparison_base.pdf"), bbox_inches='tight', dpi=900)
+    plt.savefig(os.path.join(save_directory, "evaluation_comparison_base.pdf"), bbox_inches='tight', dpi=900, pad_inches=0.01)
     plt.show()
     
 def draw_inference():
@@ -1074,10 +1074,10 @@ if __name__ == "__main__":
     # draw_comparison()
     # draw_cprofile()
     # draw_sagemaker()
-    # draw_evaluation_base()
+    draw_evaluation_base()
     # draw_inference()
     # draw_resource()
     # draw_chosen_trace()
-    draw_evaluation_trace_test()
+    # draw_evaluation_trace_test()
     # draw_evaluation_simulation()
     # draw_evaluation_performance_breakdown()
