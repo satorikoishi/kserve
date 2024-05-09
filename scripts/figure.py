@@ -7,6 +7,7 @@ import os
 from matplotlib.ticker import FixedLocator
 import matplotlib
 import seaborn as sns
+from matplotlib.font_manager import FontProperties
 
 # model_name_list = ["bloom-560m", "bert-large-uncased"]
 model_name_list = ["bert-base-uncased", "bert-large-uncased", 
@@ -25,7 +26,7 @@ runtime_order = ['opt', 'base', 'baseplus', 'sagemaker']  # Desired order
 runtime_names = {
     'opt': 'FaLLServe',
     'base':'KServe',
-    'sagemaker': 'Sagemaker',
+    'sagemaker': 'SageMaker',
     'baseplus': 'KServe+'
 }
 markers = {
@@ -34,9 +35,33 @@ markers = {
     'baseplus': 'x',
     'sagemaker': 'v'
 }
-desired_order = ['FaLLServe', 'KServe', 'KServe+', 'Sagemaker']
+runtime_colors = {
+    'opt': (53/255, 38/255, 96/255),
+    'base':(85/255, 59/255, 148/255),
+    'baseplus': (152/255, 114/255, 202/255),
+    'sagemaker': (226/255, 201/255, 237/255)
+}
+# runtime_colors = {
+#     'opt': (53/255, 38/255, 96/255),
+#     'base':(85/255, 59/255, 148/255),
+#     'baseplus': (152/255, 114/255, 202/255),
+#     'sagemaker': (246/255, 231/255, 237/255)
+# }
+desired_order = ['FaLLServe', 'KServe', 'KServe+', 'SageMaker']
 
+font_props = FontProperties(family='serif', size=12)
 save_directory = os.path.join(os.path.expanduser('~'), "Paper-prototype/Serverless-LLM-serving/figures")
+
+# def set_font():
+#     # Set the global font to be serif, and specify your preferred fonts
+#     matplotlib.rcParams['font.family'] = 'serif'
+#     matplotlib.rcParams['font.serif'] = 'Times New Roman'  # Adjust as needed
+
+#     # Optionally, set the font size globally
+#     matplotlib.rcParams['font.size'] = 12
+    
+# def reset_font():
+#     matplotlib.rcdefaults()
 
 def fetch_data_from_file(runtime_config=full_runtime_config):
     comparison_dir = os.path.join(os.path.dirname(__file__), f"../results/comparison")
@@ -317,7 +342,7 @@ def draw_evaluation_base():
     # Generate bars for each runtime
     bars = []
     for i, runtime in enumerate(runtime_order):
-        bars.append(ax.bar(index + i * bar_width, df_lists[runtime], bar_width, alpha=opacity, label=runtime_names[runtime]))
+        bars.append(ax.barh(index + (len(runtime_order) - 1 - i) * bar_width, df_lists[runtime][::-1], bar_width, label=runtime_names[runtime], color=runtime_colors[runtime], edgecolor='black'))
 
     # # Adding the number on the bars
     # for bar in bars:
@@ -331,15 +356,15 @@ def draw_evaluation_base():
             
     # Add labels, title, and custom x-axis tick labels, etc.
     # ax.set_xlabel('Model')
-    ax.set_ylabel('Cold Start Latency (s)')
+    ax.set_xlabel('Cold Start Latency (s)')
     # ax.set_title('Model Latency Comparison by Runtime')
-    ax.set_xticks(index + 1.5 * bar_width)
-    ax.set_xticklabels([x.capitalize() for x in model_name_list], rotation=45)
+    ax.set_yticks(index + 1.5 * bar_width)
+    ax.set_yticklabels([x.capitalize() for x in model_name_list[::-1]])
     ax.legend()
 
     # Display the plot
     plt.tight_layout()
-    plt.savefig(os.path.join(save_directory, "evaluation_comparison_base.pdf"), bbox_inches='tight', dpi=900)
+    plt.savefig(os.path.join(save_directory, "evaluation_comparison_base.pdf"), bbox_inches='tight', dpi=900, pad_inches=0.01)
     plt.show()
     
 def draw_inference():
@@ -350,7 +375,7 @@ def draw_inference():
     inf_list = []
     load_list = []
     
-    for model in model_name_list:
+    for model in model_name_list[::-1]:
         base_load_path = os.path.join(os.path.dirname(__file__), f"../results/comparison/base/init-{model}-mar.csv")
         base_load_df = pd.read_csv(base_load_path)
         print(base_load_df)
@@ -374,19 +399,19 @@ def draw_inference():
     r2 = [x + bar_width for x in r1]
 
     # Bar plot for inference and load latency
-    ax1.bar(r1, inf_list, color='b', width=bar_width, edgecolor='grey', label='Inference Latency (s)')
-    ax1.bar(r2, load_list, color='r', width=bar_width, edgecolor='grey', label='Load Latency (s)')
+    ax1.barh(r2, inf_list, color='b', alpha=0.8, height=bar_width, label='Inference', edgecolor='black')
+    ax1.barh(r1, load_list, color='orange', alpha=0.8, height=bar_width, label='Cold Start', edgecolor='black')
 
     # Setting the y-axis to log scale for latency values
-    ax1.set_yscale('log')
+    ax1.set_xscale('log')
     # ax1.set_xlabel('Model', fontweight='bold')
-    ax1.set_ylabel('Latency (s)', fontweight='bold')
+    ax1.set_xlabel('Latency (s)')
 
     # Second y-axis for the ratio
-    ax2 = ax1.twinx()
-    ax2.plot(model_name_list, latency_ratio, color='g', label='Load/Inference Latency Ratio', marker='o')
-    ax2.set_ylabel('Ratio', fontweight='bold')
-    ax2.set_ylim(0)  # Starts the secondary y-axis from 0
+    # ax2 = ax1.twinx()
+    # ax2.plot(model_name_list, latency_ratio, color='g', label='Load/Inference Latency Ratio', marker='o')
+    # ax2.set_ylabel('Ratio', fontweight='bold')
+    # ax2.set_ylim(0)  # Starts the secondary y-axis from 0
     # ax2.set_yscale('log')
     # # Adjust the y-axis range to make the line appear uniformly high
     # # This is done by setting the lower limit closer to the smallest value and the upper limit beyond the largest value
@@ -396,14 +421,15 @@ def draw_inference():
     
     # Setting the title, adjusting the x-axis, and adding legend
     # ax1.set_title('Inference and Load Latency Comparison by Model')
-    ax1.set_xticks([r + bar_width/2 for r in r1])
-    ax1.set_xticklabels([x.capitalize() for x in model_name_list], rotation=45)
+    ax1.set_yticks([r + bar_width/2 for r in r1])
+    ax1.set_yticklabels([x.capitalize() for x in model_name_list[::-1]])
 
     # Combining legends from both axes
-    lines, labels = ax1.get_legend_handles_labels()
-    lines2, labels2 = ax2.get_legend_handles_labels()
-    ax2.legend(lines + lines2, labels + labels2, loc='upper left')
-
+    handles, labels = ax1.get_legend_handles_labels()
+    # lines2, labels2 = ax2.get_legend_handles_labels()
+    # ax2.legend(lines + lines2, labels + labels2, loc='upper left')
+    ax1.legend(handles, labels, loc='upper center', bbox_to_anchor=(0.5, 1.2), ncol=2, frameon=False)
+    
     # plt.xticks(rotation=45)    
     plt.tight_layout()
     plt.savefig(os.path.join(save_directory, "motivation_inference_ratio.pdf"), bbox_inches='tight', dpi=900)
@@ -451,15 +477,17 @@ def draw_chosen_trace():
     # Generating data for 1440 minutes (24 hours)
     minutes = np.arange(1, 1441)
 
-    plt.plot(minutes, df[0], label='Sporadic', alpha=0.7)
-    plt.plot(minutes, df[1], label='Bursty', alpha=0.7)
-    plt.plot(minutes, df[2], label='Periodic', alpha=0.7)
+    plt.plot(minutes, df[0], label='Sporadic', alpha=1)
+    plt.plot(minutes, df[1], label='Bursty', alpha=1)
+    plt.plot(minutes, df[2], label='Periodic', alpha=1)
 
     # plt.title('Workload Patterns Over 24 Hours')
     plt.xlabel('Minute of Day')
     plt.ylabel('# Requests / min')
     plt.legend()
-    plt.grid(True)
+    ax = plt.gca()
+    ax.set_axisbelow(True)
+    ax.grid(linestyle='--')
     plt.savefig(os.path.join(save_directory, "evaluation_chosen_trace.pdf"), bbox_inches='tight', dpi=900)
     plt.show()
     
@@ -580,11 +608,15 @@ def draw_evaluation_trace_test():
         
         # Plotting
         fig, ax = plt.subplots(figsize=(5, 2))
-        pivot_df.plot(kind='bar', ax=ax, rot=0, width=0.8, alpha=0.8)
+        pivot_df.plot(kind='bar', ax=ax, rot=0, width=0.8, color=[runtime_colors[x] for x in runtime_order], edgecolor='black')
 
         # Customization for better readability
         ax.set_xlabel("", fontsize=12)
         ax.set_ylabel("Cold Start Ratio (%)", fontsize=12)
+        plt.minorticks_on()
+        # plt.tick_params(axis='y', which='major', length=10, width=1)  # Customize major ticks
+        plt.tick_params(axis='y', which='minor', length=2.5, width=1, bottom=False)  # Customize minor ticks to be smaller
+        plt.tick_params(axis='x', which='minor', length=0)
         # ax.set_title("Cold Start Ratios by Configuration and Trace Type", fontsize=15)
         ax.legend()
 
@@ -622,7 +654,7 @@ def draw_evaluation_trace_test():
             ax.bar(runtime_labels, latencies, yerr=[lower_errors, upper_errors], capsize=5)
             ax.set_title(f'90th Percentile Latencies with Error Bars for {trace_label}')
             ax.set_xlabel('Runtime')
-            ax.set_ylabel('Latency (seconds)')
+            ax.set_ylabel('Latency (s)')
             plt.show()
             
     def plot_aggregated_scatter(data, models, trace_labels, runtimes_trace, interval=10, aggregation_func=np.mean):
@@ -649,10 +681,10 @@ def draw_evaluation_trace_test():
                     scatter_objects[runtime] = axes[index].scatter(df_aggregated['Interval'], df_aggregated['E2ELatency'], alpha=0.5, s=20, label=runtime_names[runtime], marker=markers[runtime])
                 
                 # plt.title(f'{trace_label} E2E Latency Over Time (Aggregated by {aggregation_func.__name__.title()})')
-                axes[index].set_title(subplot_titles[index], y=-0.4)
+                axes[index].set_title(subplot_titles[index], y=-0.4, fontproperties=font_props)
                 axes[index].set_xlabel('Time (minutes)')
                 if index == 0:
-                    axes[index].set_ylabel('E2E Latency (seconds)')
+                    axes[index].set_ylabel('E2E Latency (s)')
         # Adjust layout
         plt.tight_layout()
         plt.legend()
@@ -681,49 +713,87 @@ def draw_evaluation_trace_test():
     # plot_percentile_comparison(data)
     plot_aggregated_scatter(data, models, trace_labels, runtimes_trace, 20, lambda x: np.percentile(x, 90))
     
-    # Violin plot
-    for trace_label in trace_labels:
-        # Prepare data for the plot
-        box_data = []
-        for runtime in runtimes_trace:
+    # Aggregated percentile latency
+    plt.figure(figsize=(5, 2))
+    ax = plt.gca()
+
+    bar_width = 0.2
+    runtimes_count = len(runtimes_trace)
+    group_width = (runtimes_count + 1) * bar_width
+    x = np.arange(len(trace_labels))
+
+    for i, runtime in enumerate(runtime_order):
+        # Prepare data for all trace_labels for this runtime
+        latency_data = []
+        err_lower = []
+        err_upper = []
+        for trace_label in trace_labels:
             df = data[(model, trace_label, runtime)]
-            df['Runtime'] = runtime  # Add a 'Runtime' column to distinguish data in the plot
-            # Rename and reorder data according to the new setup
-            df['Runtime'] = df['Runtime'].map(runtime_names)
-            box_data.append(df)
-        combined_df = pd.concat(box_data)
-        # Ensure that the DataFrame uses the new runtime order
-        category_order = [runtime_names[runtime] for runtime in runtime_order]
-        combined_df['Runtime'] = pd.Categorical(combined_df['Runtime'], categories=category_order, ordered=True)
+            p50 = df['E2ELatency'].quantile(0.50)
+            p90 = df['E2ELatency'].quantile(0.90)
+            p99 = df['E2ELatency'].quantile(0.99)
+            latency_data.append(p90)
+            err_lower.append(p90 - p50)
+            err_upper.append(p99 - p90)
         
-        if trace_label == 'Sporadic':
-            # Generate the violin plot for Sporadic workflow
-            plt.figure(figsize=(5, 3))
-            sns.violinplot(x='Runtime', y='E2ELatency', data=combined_df, order=category_order, inner=None)
-            plt.xlabel('')
-            plt.ylabel('E2E Latency (seconds)')
-            plt.savefig(os.path.join(save_directory, f"evaluation_trace_{trace_label}.pdf"), bbox_inches='tight', dpi=600)
-            plt.show()
-        else:
-            # Calculate percentiles for bar chart with error bars
-            p50 = combined_df.groupby('Runtime')['E2ELatency'].quantile(0.50)
-            p90 = combined_df.groupby('Runtime')['E2ELatency'].quantile(0.90)
-            p99 = combined_df.groupby('Runtime')['E2ELatency'].quantile(0.99)
-            
-            # Calculate errors
-            error_lower = p90 - p50
-            error_upper = p99 - p90
-            
-            plt.figure(figsize=(5, 3))
-            plt.bar(p90.index, p90, yerr=[error_lower.values, error_upper.values], capsize=5, color='skyblue')
-            # Set y-axis to logarithmic scale
-            plt.yscale('log')
-            plt.xlabel('')
-            plt.ylabel('E2E Latency (seconds)')
-            # plt.title(f'{trace_label} Latency with Error Bars (P90 with P50, P99)')
-            plt.savefig(os.path.join(save_directory, f"evaluation_trace_{trace_label}.pdf"), bbox_inches='tight', dpi=600)
-            plt.show()
+        # Plotting the bars for this runtime
+        plt.bar(x + i * bar_width, latency_data, yerr=[err_lower, err_upper], color=runtime_colors[runtime], capsize=3, width=bar_width, label=runtime_names[runtime], edgecolor='black')
+
+    # plt.xlabel('Trace Label')
+    plt.ylabel('E2E Latency (s)')
+    # plt.title('P90 E2E Latency by Trace Label and Runtime')
+    plt.xticks(x + group_width / 2 - bar_width, trace_labels)
+    handles, labels = ax.get_legend_handles_labels()
+    # ax.set_title('Time Distribution by Method and Function')
+    ax.legend(handles, labels, loc='upper center', bbox_to_anchor=(0.5, 1.4), ncol=2, frameon=False)    
+    plt.yscale('log')
+    # plt.grid(linestyle='--', axis='y')
+    plt.savefig(os.path.join(save_directory, f"evaluation_trace_distribution_summary.pdf"), bbox_inches='tight', dpi=900)
+    plt.show()
     
+    # # Violin plot
+    # for trace_label in trace_labels:
+    #     # Prepare data for the plot
+    #     box_data = []
+    #     for runtime in runtimes_trace:
+    #         df = data[(model, trace_label, runtime)]
+    #         df['Runtime'] = runtime  # Add a 'Runtime' column to distinguish data in the plot
+    #         # Rename and reorder data according to the new setup
+    #         df['Runtime'] = df['Runtime'].map(runtime_names)
+    #         box_data.append(df)
+    #     combined_df = pd.concat(box_data)
+    #     # Ensure that the DataFrame uses the new runtime order
+    #     category_order = [runtime_names[runtime] for runtime in runtime_order]
+    #     combined_df['Runtime'] = pd.Categorical(combined_df['Runtime'], categories=category_order, ordered=True)
+        
+    #     if trace_label == 'Sporadic':
+    #         # Generate the violin plot for Sporadic workflow
+    #         plt.figure(figsize=(5, 3))
+    #         sns.violinplot(x='Runtime', y='E2ELatency', data=combined_df, order=category_order, inner=None)
+    #         plt.xlabel('')
+    #         plt.ylabel('E2E Latency (seconds)')
+    #         plt.savefig(os.path.join(save_directory, f"evaluation_trace_{trace_label}.pdf"), bbox_inches='tight', dpi=600)
+    #         plt.show()
+    #     else:
+    #         # Calculate percentiles for bar chart with error bars
+    #         p50 = combined_df.groupby('Runtime')['E2ELatency'].quantile(0.50)
+    #         p90 = combined_df.groupby('Runtime')['E2ELatency'].quantile(0.90)
+    #         p99 = combined_df.groupby('Runtime')['E2ELatency'].quantile(0.99)
+            
+    #         # Calculate errors
+    #         error_lower = p90 - p50
+    #         error_upper = p99 - p90
+            
+    #         plt.figure(figsize=(5, 3))
+    #         plt.bar(p90.index, p90, yerr=[error_lower.values, error_upper.values], capsize=5, color='skyblue')
+    #         # Set y-axis to logarithmic scale
+    #         plt.yscale('log')
+    #         plt.xlabel('')
+    #         plt.ylabel('E2E Latency (seconds)')
+    #         # plt.title(f'{trace_label} Latency with Error Bars (P90 with P50, P99)')
+    #         plt.savefig(os.path.join(save_directory, f"evaluation_trace_{trace_label}.pdf"), bbox_inches='tight', dpi=600)
+    #         plt.show()
+        
     # # Recommended Plots
     # for trace_label in trace_labels:
     #     fig, axes = plt.subplots(nrows=1, ncols=3, figsize=(18, 6), sharey=True)
@@ -912,10 +982,21 @@ def draw_evaluation_simulation():
             p99_opt = subset['99th Percentile'].values[0] / opt_subset['99th Percentile'].values[0]
             print(f'Runtime: {runtime}, Alpha: {alpha}. P90: {p90_opt}, P99: {p99_opt}')
     
+    # Dummy legend
+    fig_legend, ax_legend = plt.subplots(figsize=(2,0.5))
+    for runtime in runtime_order[:-1]:
+        ax_legend.plot([], [], marker=markers[runtime], label=runtime_names[runtime], color=runtime_colors[runtime], linestyle='-', markersize=10)
+    legend = ax_legend.legend(loc='center', frameon=False, fontsize='large', ncol=3)
+    fig_legend.canvas.draw()
+    ax_legend.axis('off')
+    plt.savefig(os.path.join(save_directory, f"evaluation_simulation_legend.pdf"), bbox_inches='tight', dpi=600)
+    plt.show()
+    
+    # Figures
     for model in num_models:
         for request in num_requests:
             for alpha in alphas:
-                plt.figure(figsize=(5, 2))
+                plt.figure(figsize=(3, 2))
                 for runtime in simulation_runtime:
                     df = data[runtime]
                     p90_vals = []
@@ -937,12 +1018,19 @@ def draw_evaluation_simulation():
                         download_percent = total_download / plot_data['Num Requests'].values[0] * 100
                         print(f'Runtime: {runtime}, Node: {node}, Model: {model}, Request: {request}, Stress: {stress}, Alpha: {alpha}. Warm percent: {warm_percent:.2f}%. Cold percent: {cold_percent:.2f}%. Download percent: {download_percent:.2f}%.')
                     errors = [p90_vals[i] - p50_vals[i] for i in range(len(p90_vals))], [p99_vals[i] - p90_vals[i] for i in range(len(p90_vals))]
-                    plt.errorbar(nodes, p90_vals, yerr=errors, fmt=f'-{markers[runtime]}', label=runtime_names[runtime], capsize=5)
+                    plt.errorbar(nodes, p90_vals, yerr=errors, fmt=f'-{markers[runtime]}', label=runtime_names[runtime], capsize=5, color=runtime_colors[runtime])
             
                 plt.xlabel('# Nodes')
                 plt.ylabel('Latency (s)')
-                plt.legend()
-                # plt.grid(True)
+                # plt.legend()
+                # min_val = 0
+                # max_val = 200
+                # yticks = np.arange((min_val // 25) * 25, (max_val // 25 + 1) * 25, 25)
+                # ytick_labels = [f"{tick}" if tick % 50 == 0 else '' for tick in yticks]
+                plt.ylim(-10, 220)
+                plt.yticks(np.arange(0, 240, 50))
+                # plt.yticks(yticks, ytick_labels)
+                # plt.grid(linestyle='--', axis='y')
                 plt.tight_layout()
                 plt.savefig(os.path.join(save_directory, f"evaluation_simulation_alpha{alpha}.pdf"), bbox_inches='tight', dpi=600)
                 plt.show()
@@ -963,20 +1051,22 @@ def draw_evaluation_performance_breakdown():
         reductions.append(reduction)
     
     # Create a bar chart
-    plt.figure(figsize=(8, 3))
+    plt.figure(figsize=(4, 2))
     plt.plot(versions, latencies, marker='o', linestyle='-', color='b', label='Latency (s)')
     
     for i, (x, y, reduction) in enumerate(zip(versions, latencies, reductions)):
         label = f'- {reduction:.1f}%' if i != 0 else ''
         plt.annotate(label, (x, y), textcoords="offset points", xytext=(0,10), ha='center')
 
+    custom_labels = ['Original', 'Custom\nDeserialization', 'Direct\nLoad', 'Advanced\nWorkflow']
+    plt.xticks(ticks=range(len(versions)), labels=custom_labels)
     # plt.xlabel('Version')
     plt.ylabel('Latency (s)')
     # plt.title('Performance Breakdown of FLAN-T5 Large Model')
     plt.yscale('log')  # Optional: Log scale to better visualize differences
     # plt.grid(True, which="both", ls="--", linewidth=0.5)
     
-    plt.savefig(os.path.join(save_directory, f"evaluation_performance_breakdown.pdf"), bbox_inches='tight', dpi=600)
+    plt.savefig(os.path.join(save_directory, f"evaluation_performance_breakdown.pdf"), bbox_inches='tight', dpi=900)
     plt.show()
 
 if __name__ == "__main__":
@@ -984,10 +1074,10 @@ if __name__ == "__main__":
     # draw_comparison()
     # draw_cprofile()
     # draw_sagemaker()
-    # draw_evaluation_base()
+    draw_evaluation_base()
     # draw_inference()
     # draw_resource()
     # draw_chosen_trace()
     # draw_evaluation_trace_test()
-    draw_evaluation_simulation()
+    # draw_evaluation_simulation()
     # draw_evaluation_performance_breakdown()
