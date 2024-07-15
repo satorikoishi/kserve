@@ -1,0 +1,8 @@
+Func,Calls,Time,Percent
+{method 'normal_' of 'torch._C.TensorBase' objects},1,0.169,19.226
+{method 'startswith' of 'str' objects},1750548,0.166,18.885
+/home/jw/.local/lib/python3.8/sitepackages/transformers/modeling_utils.py:569(<setcomp>),1116,0.073,8.305
+/home/jw/.local/lib/python3.8/sitepackages/transformers/modeling_utils.py:681(<listcomp>),1118,0.071,8.077
+/home/jw/.local/lib/python3.8/sitepackages/torch/nn/modules/module.py:1974(_load_from_state_dict),898,0.068,7.736
+Other,0,0.332,37.77
+Total,0,0.879,100

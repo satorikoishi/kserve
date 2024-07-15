@@ -1,0 +1,8 @@
+Func,Calls,Time,Percent
+{method 'uniform_' of 'torch._C.TensorBase' objects},432,4.411,41.886
+{method 'normal_' of 'torch._C.TensorBase' objects},438,4.286,40.699
+/home/jw/.local/lib/python3.8/sitepackages/torch/serialization.py:1372(load_tensor),557,1.472,13.978
+{method 'copy_' of 'torch._C.TensorBase' objects},559,0.123,1.168
+{method 'load' of '_pickle.Unpickler' objects},1,0.08,0.76
+Other,0,0.159,1.51
+Total,0,10.531,100

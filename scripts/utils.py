@@ -307,8 +307,8 @@ def round_floats_in_data(data):
             rounded_data.append(item)
     return rounded_data
 
-def analyze_cprofile():
-    cprofile_data_path = os.path.join(os.path.dirname(__file__), "../results/load_profile", "container-cprofile-flan-t5-large.log")
+def analyze_cprofile(fname="container-cprofile-flan-t5-large.log"):
+    cprofile_data_path = os.path.join(os.path.dirname(__file__), "../results/load_profile", fname)
     
     methods = ["LoadStateDict", "TorchLoad", "LoadPretrained"]
     with open(cprofile_data_path, 'r') as f:
@@ -346,7 +346,7 @@ def analyze_cprofile():
             
             result = round_floats_in_data(result)
             
-            csv_path = os.path.join(os.path.dirname(__file__), "../results/load_profile", f"{methods[idx].lower()}.csv")
+            csv_path = os.path.join(os.path.dirname(__file__), "../results/load_profile", f"{fname}-{methods[idx].lower()}.csv")
             with open(csv_path, 'w') as f:
                 csvwriter = csv.writer(f)
                 row = ["Func", "Calls", "Time", "Percent"]

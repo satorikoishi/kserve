@@ -1,0 +1,8 @@
+Func,Calls,Time,Percent
+/home/jw/.local/lib/python3.8/sitepackages/torch/serialization.py:1372(load_tensor),558,1.512,96.675
+{method 'load' of '_pickle.Unpickler' objects},1,0.02,1.279
+/home/jw/.local/lib/python3.8/sitepackages/torch/_guards.py:823(detect_fake_mode),558,0.004,0.256
+{builtin method _make_subclass},558,0.003,0.192
+{builtin method torch.empty},558,0.003,0.192
+Other,0,0.022,1.407
+Total,0,1.564,100
