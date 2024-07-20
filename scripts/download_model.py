@@ -1,6 +1,6 @@
 import os
 import argparse
-from transformers import AutoModel, AutoConfig, AutoTokenizer, T5ForConditionalGeneration, BloomForCausalLM, BertForSequenceClassification
+from transformers import AutoModelForCausalLM, AutoConfig, AutoTokenizer, T5ForConditionalGeneration, BloomForCausalLM, BertForSequenceClassification
 import subprocess
 import shutil
 from kubernetes import client, config
@@ -30,8 +30,9 @@ def download_and_save_model(model_name, save_directory):
     elif 'bert' in model_name:
         model = BertForSequenceClassification.from_pretrained(model_name, config=config)
     else:
-        assert False, f"Unknown model: {model_name}"
-    model.save_pretrained(save_directory)
+        model = AutoModelForCausalLM.from_pretrained(model_name)
+        # assert False, f"Unknown model: {model_name}"
+    model.save_pretrained(save_directory, max_shard_size="512GB")
     torch.save(model, os.path.join(save_directory, "model.pt"))
     tokenizer = AutoTokenizer.from_pretrained(model_name)
     tokenizer.save_pretrained(save_directory)
