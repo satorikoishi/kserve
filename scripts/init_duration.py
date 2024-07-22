@@ -169,6 +169,13 @@ def search_model_basename(logs):
         match = re.search(r'Model Store: /mnt/pvc/(.*?)/model-store', log_line)
         if match:
             return match.group(1)
+    
+    # Fix for opt runtime
+    for log_line in logs:
+        pattern = re.compile(r'"marName":"(.*?)"')
+        match = pattern.search(log_line)
+        if match:
+            return match.group(1)
     return None
 
 if __name__ == "__main__":

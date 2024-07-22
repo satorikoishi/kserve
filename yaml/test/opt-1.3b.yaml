@@ -1,0 +1,19 @@
+apiVersion: serving.kserve.io/v1beta1
+kind: InferenceService
+metadata:
+  name: "opt"
+spec:
+  predictor:
+    model:
+      modelFormat:
+        name: pytorch
+      storageUri: pvc://task-pv-claim/opt-1.3b
+      resources:
+        limits:
+          cpu: "2"
+          memory: 128Gi
+          nvidia.com/gpu: "1"
+        requests:
+          cpu: "2"
+          memory: 128Gi
+          nvidia.com/gpu: "1"

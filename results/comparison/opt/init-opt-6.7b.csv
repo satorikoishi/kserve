@@ -1,0 +1,12 @@
+Event,Duration
+First Log,0.393
+Load Config,2.945
+Unzip Model Archive,0.014
+Setup Model Dependency,0.001
+Start Torch Worker,0.094
+Service Ready,25.043
+Total,28.49
+Worker Init,2.373
+Worker Load Model,25.719
+Total,28.092
+Total App,28.097
