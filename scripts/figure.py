@@ -29,7 +29,7 @@ runtime_names = {
     'base':'KServe',
     'sagemaker': 'SageMaker',
     'baseplus': 'KServe+',
-    '1day': 'AlwaysProv',
+    '1day': 'ConstProv',
     '1m': '1MinuteProv'
 }
 markers = {
@@ -651,7 +651,7 @@ def draw_evaluation_trace_test():
         df['Trace'] = pd.Categorical(df['Trace'], categories=trace_labels, ordered=True)
         
         pivot_df = df.pivot(index="Trace", columns="Configuration", values="Expense")
-        extra_desired_order = desired_order + ['AlwaysProv', '1MinuteProv']
+        extra_desired_order = desired_order + ['ConstProv', '1MinuteProv']
         pivot_df = pivot_df[extra_desired_order]
         pivot_df = pivot_df.div(pivot_df.iloc[:,0], axis=0)
         print(pivot_df)
