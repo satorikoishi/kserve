@@ -1106,7 +1106,7 @@ def draw_evaluation_performance_breakdown():
         label = f'- {reduction:.1f}%' if i != 0 else ''
         plt.annotate(label, (x, y), textcoords="offset points", xytext=(0,10), ha='center')
 
-    custom_labels = ['Original', 'Custom\nDeserialization', 'Direct\nLoad', 'Advanced\nWorkflow']
+    custom_labels = ['Original', 'Init-less\nLoad', 'Direct\nLoad', 'Advanced\nWorkflow']
     plt.xticks(ticks=range(len(versions)), labels=custom_labels)
     # plt.xlabel('Version')
     plt.ylabel('Latency (s)')
@@ -1126,6 +1126,6 @@ if __name__ == "__main__":
     # draw_inference()
     # draw_resource()
     # draw_chosen_trace()
-    draw_evaluation_trace_test()
+    # draw_evaluation_trace_test()
     # draw_evaluation_simulation()
-    # draw_evaluation_performance_breakdown()
+    draw_evaluation_performance_breakdown()
