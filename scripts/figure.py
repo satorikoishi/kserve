@@ -12,6 +12,7 @@ from matplotlib.font_manager import FontProperties
 # model_name_list = ["bloom-560m", "bert-large-uncased"]
 model_name_list = ["bert-base-uncased", "bert-large-uncased", 
                    "flan-t5-small", "flan-t5-base", "flan-t5-large", "bloom-560m"]
+additional_model_name_list = ["bloom-7b1", "opt-1.3b", "opt-6.7b"]
 # runtime_config = ["base"]
 full_runtime_config = ["base", "opt"]
 methods = ["Load Pretrained", "Load State Dict"]
@@ -27,7 +28,9 @@ runtime_names = {
     'opt': 'FaLLServe',
     'base':'KServe',
     'sagemaker': 'SageMaker',
-    'baseplus': 'KServe+'
+    'baseplus': 'KServe+',
+    '1day': 'ConstProv',
+    '1m': '1MinuteProv'
 }
 markers = {
     'opt': 'o',
@@ -39,7 +42,9 @@ runtime_colors = {
     'opt': (53/255, 38/255, 96/255),
     'base':(85/255, 59/255, 148/255),
     'baseplus': (152/255, 114/255, 202/255),
-    'sagemaker': (226/255, 201/255, 237/255)
+    'sagemaker': (226/255, 201/255, 237/255),
+    '1day': (128/255, 128/255, 128/255),
+    '1m': (192/255, 192/255, 192/255)
 }
 # runtime_colors = {
 #     'opt': (53/255, 38/255, 96/255),
@@ -294,6 +299,8 @@ def draw_evaluation_base():
     # sagemaker_df['Total'] = sagemaker_df['ModelLatency'] + sagemaker_df['OverheadLatency']
     
     df_lists = {'base': [], 'baseplus': [], 'opt': [], 'sagemaker': []}
+    global model_name_list
+    model_name_list = model_name_list + additional_model_name_list
     for model in model_name_list:
         base_init_path = os.path.join(os.path.dirname(__file__), f"../results/comparison", f"base/init-{model}-mar.csv")
         baseplus_init_path = os.path.join(os.path.dirname(__file__), f"../results/comparison", f"baseplus/init-{model}-mar-tl.csv")
@@ -356,7 +363,7 @@ def draw_evaluation_base():
             
     # Add labels, title, and custom x-axis tick labels, etc.
     # ax.set_xlabel('Model')
-    ax.set_xlabel('Cold Start Latency (s)')
+    ax.set_xlabel('Latency (s)')
     # ax.set_title('Model Latency Comparison by Runtime')
     ax.set_yticks(index + 1.5 * bar_width)
     ax.set_yticklabels([x.capitalize() for x in model_name_list[::-1]])
@@ -595,6 +602,19 @@ def draw_evaluation_trace_test():
             print(f'Baseline: {key}, average_factor: {np.mean(ratio_ls)}')
         return cold_start_ratios
     
+    def calculate_expense(data):
+        medium_lat = 0.118
+        execution_cost_rate = 0.0000350
+        provision_cost_rate = 0.0000150
+        expense_results = {}
+        for key, df in data.items():
+            expense_results[key] = df['E2ELatency'].sum() * execution_cost_rate
+            if 'opt' in key:
+                model, trace, _ = key
+                expense_results[(model, trace, "1day")] = df['E2ELatency'].count() * medium_lat * execution_cost_rate + provision_cost_rate * 60 * 60 * 24
+                expense_results[(model, trace, "1m")] = df['E2ELatency'].count() * medium_lat * execution_cost_rate + provision_cost_rate * df['Timestamp'].nunique() * 60
+        return expense_results
+    
     def plot_cold_start_ratio(cold_start_ratios):
         # Convert dictionary into a DataFrame
         data_items = [(trace, cfg, cs_ratio) for (model, trace, cfg), cs_ratio in cold_start_ratios.items()]
@@ -622,6 +642,32 @@ def draw_evaluation_trace_test():
 
         plt.tight_layout()
         plt.savefig(os.path.join(save_directory, f"evaluation_trace_cold_start.pdf"), bbox_inches='tight', dpi=900)
+        plt.show()
+    
+    def plot_expense_results(expense_results):
+        data_items = [(trace, cfg, expense) for (model, trace, cfg), expense in expense_results.items()]
+        df = pd.DataFrame(data_items, columns=['Trace', 'Configuration', 'Expense'])
+        df['Configuration'] = df['Configuration'].map(runtime_names)
+        df['Trace'] = pd.Categorical(df['Trace'], categories=trace_labels, ordered=True)
+        
+        pivot_df = df.pivot(index="Trace", columns="Configuration", values="Expense")
+        extra_desired_order = desired_order + ['ConstProv', '1MinuteProv']
+        pivot_df = pivot_df[extra_desired_order]
+        pivot_df = pivot_df.div(pivot_df.iloc[:,0], axis=0)
+        print(pivot_df)
+        
+        fig, ax = plt.subplots(figsize=(6, 3))
+        extra_runtime_order = runtime_order + ['1day', '1m']
+        pivot_df.plot(kind='bar', ax=ax, rot=0, width=0.8, color=[runtime_colors[x] for x in extra_runtime_order], edgecolor='black')
+        ax.set_xlabel("", fontsize=12)
+        ax.set_ylabel("Normalized Expense", fontsize=12)
+        plt.minorticks_on()
+        plt.tick_params(axis='y', which='minor', length=2.5, width=1, bottom=False)  # Customize minor ticks to be smaller
+        plt.tick_params(axis='x', which='minor', length=0)
+        ax.legend()    
+
+        plt.tight_layout()
+        plt.savefig(os.path.join(save_directory, f"evaluation_trace_expense.pdf"), bbox_inches='tight', dpi=900)
         plt.show()
     
     def plot_percentile_comparison(data):
@@ -709,6 +755,8 @@ def draw_evaluation_trace_test():
     replace_non_200_with_max_latency(data)
     print_percentile_latencies(data)
     cold_start_ratios = calculate_cold_start_ratio(data)
+    expense_results = calculate_expense(data)
+    plot_expense_results(expense_results)
     plot_cold_start_ratio(cold_start_ratios)
     # plot_percentile_comparison(data)
     plot_aggregated_scatter(data, models, trace_labels, runtimes_trace, 20, lambda x: np.percentile(x, 90))
@@ -1058,7 +1106,7 @@ def draw_evaluation_performance_breakdown():
         label = f'- {reduction:.1f}%' if i != 0 else ''
         plt.annotate(label, (x, y), textcoords="offset points", xytext=(0,10), ha='center')
 
-    custom_labels = ['Original', 'Custom\nDeserialization', 'Direct\nLoad', 'Advanced\nWorkflow']
+    custom_labels = ['Original', 'Init-less\nLoad', 'Direct\nLoad', 'Advanced\nWorkflow']
     plt.xticks(ticks=range(len(versions)), labels=custom_labels)
     # plt.xlabel('Version')
     plt.ylabel('Latency (s)')
@@ -1074,10 +1122,10 @@ if __name__ == "__main__":
     # draw_comparison()
     # draw_cprofile()
     # draw_sagemaker()
-    draw_evaluation_base()
+    # draw_evaluation_base()
     # draw_inference()
     # draw_resource()
     # draw_chosen_trace()
     # draw_evaluation_trace_test()
     # draw_evaluation_simulation()
-    # draw_evaluation_performance_breakdown()
+    draw_evaluation_performance_breakdown()
