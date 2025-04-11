@@ -55,7 +55,9 @@ runtime_colors = {
 desired_order = ['FaLLServe', 'KServe', 'KServe+', 'SageMaker']
 
 font_props = FontProperties(family='serif', size=12)
-save_directory = os.path.join(os.path.expanduser('~'), "Paper-prototype/Serverless-LLM-serving/figures")
+# matplotlib.rcParams['pdf.fonttype'] = 42
+# matplotlib.rcParams['text.usetex'] = True
+save_directory = os.path.join(os.path.expanduser('~'), "Paper-prototype/FaLLServe/figures")
 
 # def set_font():
 #     # Set the global font to be serif, and specify your preferred fonts
@@ -98,6 +100,197 @@ def get_data_fk(df, fk, fv, k):
     v = matched_rows.iloc[0]
     print(f"For {fk} = {fv}, {column_name} = {v}")
     return v
+
+def calc_motivation_cold_start():
+    def simulate_consolidated(invocations, keep_alive):
+        """
+        Consolidated mode simulation:
+        - There is at most one instance active at any given time.
+        - If there is at least one invocation in a minute, and there is a warm instance 
+            (i.e. one that was started within keep_alive minutes), then no cold start is triggered.
+        - Otherwise, a cold start is triggered and a warm instance is launched.
+        Parameters:
+        invocations: list of ints for each minute (length 30)
+        keep_alive: keep-alive time in minutes
+        Returns:
+        cold_starts: number of cold starts for the trace.
+        """
+        cold_starts = 0
+        # active_instance_expiration holds the expiration minute of the currently active instance.
+        active_instance_expiration = -1
+
+        # Minutes are 1-indexed (1 to 30)
+        for minute in range(1, len(invocations) + 1):
+            count = invocations[minute-1]
+            # Check if the instance (if any) is still warm for the current minute.
+            if active_instance_expiration < minute and count > 0:
+                # No warm instance available, so cold start.
+                cold_starts += 1
+                # Launch an instance with expiration = current minute + keep_alive
+                active_instance_expiration = minute + keep_alive
+            # If an instance exists and there's an invocation, refresh its expiration.
+            if count > 0 and active_instance_expiration >= minute:
+                active_instance_expiration = minute + keep_alive
+
+        return cold_starts
+
+    def simulate_discrete(invocations, keep_alive):
+        """
+        Discrete mode simulation:
+        - Each invocation needs an instance; a warm instance (launched in a previous minute)
+            can only serve one invocation per minute.
+        - Maintain a list of warm instances available for the current minute.
+        - Each instance is represented by its expiration minute.
+        Parameters:
+        invocations: list of ints (length 30) for each minute.
+        keep_alive: keep-alive time in minutes.
+        Returns:
+        cold_starts: total cold starts triggered.
+        """
+        cold_starts = 0
+        warm_instances = []  # list of expiration minutes for available instances.
+
+        for minute in range(1, len(invocations) + 1):
+            count = invocations[minute-1]
+            # Remove expired instances (expiration < current minute; if expiration==minute, we assume it is still available).
+            warm_instances = [exp for exp in warm_instances if exp >= minute]
+            
+            # print(warm_instances)
+
+            # In discrete mode, an instance can serve only one invocation per minute.
+            # So mark how many warm instances are free.
+            available = len(warm_instances)
+            
+            if count > available:
+                # Not enough warm instances to cover the invocations
+                new_instances = count - available
+                cold_starts += new_instances
+                # Create new instances that will be warm for future minutes.
+                for _ in range(new_instances):
+                    warm_instances.append(minute + keep_alive)
+                        
+            # For the warm instances that were used (or not used), if they were served in this minute,
+            # update their expiration time (they become refreshed if used in this minute) –
+            # However, if they weren't used, they’re already in the list with their expiration. 
+            # In this simple simulation, we assume that using a warm instance refreshes its expiration.
+            # For the ones used from warm_instances (before removal) we could add them back with new expiration,
+            # but since they are removed for this minute, they will be re-created in the next minute if needed.
+            # For this simulation, we assume that each instance used is effectively replaced if needed.
+            # (Alternatively, you can simulate a more complex model if each instance can serve at most 1 invocation per minute.)
+        
+        return cold_starts
+
+    def calculate_scenario1(row, keep_alive_time):
+        """Calculate cold starts considering instance scaling during warm periods"""
+        cold_starts = 0
+        last_active_minute = None
+        available_instances = 0
+        
+        for minute in range(len(row)):
+            current_invoc = row[minute]
+            if current_invoc == 0:
+                continue
+            
+            if last_active_minute is not None and minute <= last_active_minute + keep_alive_time:
+                # Warm period - check if scaling needed
+                if current_invoc > available_instances:
+                    new_instances = current_invoc - available_instances
+                    cold_starts += new_instances
+                    available_instances = current_invoc
+            else:
+                # Cold period - all invocations are cold starts
+                cold_starts += current_invoc
+                available_instances = current_invoc
+            
+            last_active_minute = minute
+        
+        return cold_starts
+
+    def calculate_scenario2(row, keep_alive_time):
+        """Original single-instance-per-cold-period calculation"""
+        cold_starts = 0
+        last_active = None
+        
+        for minute in range(len(row)):
+            if row[minute] > 0:
+                if last_active is None or minute > last_active + keep_alive_time:
+                    cold_starts += 1
+                last_active = minute
+    
+        return cold_starts
+
+    # df = pd.read_csv(os.path.join(os.path.dirname(__file__), f"../results/trace/chosen_data.csv"))
+    file_path = os.path.join(os.path.expanduser('~'), "Downloads/trace/invocations_per_function_md.anon.d13.csv")
+    df = pd.read_csv(file_path)
+    print(df)
+    
+    results = []
+    for _, row in df.iterrows():
+        invocations = row[4:]
+        # invocations = [1] * 30
+        # Calculate for 1-minute keep-alive
+        # ka1_sc1 = calculate_scenario1(invocations, 1)
+        # ka1_sc2 = calculate_scenario2(invocations, 1)
+        # ka1_g1 = simulate_discrete(invocations, 1)
+        # ka1_g2 = simulate_consolidated(invocations, 1)
+        
+        # Calculate for 15-minute keep-alive
+        # ka15_sc1 = calculate_scenario1(invocations, 15)
+        # ka15_sc2 = calculate_scenario2(invocations, 15)
+        ka15_g1 = simulate_discrete(invocations, 15)
+        # ka15_g2 = simulate_consolidated(invocations, 15)
+        
+        # Collect results
+        results.append({
+            'HashOwner': row['HashOwner'],
+            'Total Invocation': sum(invocations),
+            # '1min_Alls': ka1_sc1,
+            # '1min_Alls_g': ka1_g1,
+            # '1min_Single': ka1_sc2,
+            # '1min_Single_g': ka1_g2,
+            # '15min_Alls': ka15_sc1,
+            '15min_Alls_g': ka15_g1,
+            # '15min_Single': ka15_sc2,
+            # '15min_Single_g': ka15_g2,
+            'Ratio': ka15_g1 / sum(invocations)
+        })
+    
+    # Convert results to DataFrame and save
+    result_df = pd.DataFrame(results)
+    result_df.to_csv(os.path.join(os.path.dirname(__file__), "../results/trace/cold_start_analysis.csv"), index=False)
+    print("Analysis saved to cold_start_analysis.csv")
+
+def draw_motivation_cold_start():
+    df = pd.read_csv(os.path.join(os.path.dirname(__file__), "../results/trace/cold_start_analysis.csv"))
+    print(df)
+    
+    ratios = df['Ratio'] * 100 / 14 * 15 - 100 / 14  # Convert to percentage
+    sorted_ratios = np.sort(ratios)
+    sorted_ratios = [100 if x > 100 else x for x in sorted_ratios]
+    sorted_ratios = [0 if x < 0 else x for x in sorted_ratios]
+    n = len(sorted_ratios)
+    y = np.arange(1, n+1) / n * 100  # Calculate cumulative percentage
+
+    # Create CDF plot
+    plt.figure(figsize=(5, 3))
+    plt.plot(sorted_ratios, y, marker='.', linestyle='none')
+    plt.xlabel('Cold Start Ratio (%)')
+    plt.ylabel('Percentage (%)')
+    plt.xlim(0, 100)
+    plt.ylim(0, 100)
+    plt.grid(True, which='both', linestyle='--', alpha=0.7)
+
+    # # Add vertical lines for common percentiles
+    # for percentile in [25, 50, 75, 90, 95]:
+    #     plt.axvline(x=np.percentile(ratios, percentile), 
+    #                 color='gray', linestyle='--', alpha=0.5)
+    #     plt.text(np.percentile(ratios, percentile)+1, 2,
+    #             f'{percentile}%', rotation=90, va='bottom', alpha=0.7)
+
+    plt.tight_layout()
+    plt.savefig(os.path.join(save_directory, "motivation_cold_start_ratio.pdf"), bbox_inches='tight', dpi=600, backend='pdf')
+    plt.show()
+    
 
 def draw_cprofile():
     # analyze_cprofile()
@@ -727,7 +920,8 @@ def draw_evaluation_trace_test():
                     scatter_objects[runtime] = axes[index].scatter(df_aggregated['Interval'], df_aggregated['E2ELatency'], alpha=0.5, s=20, label=runtime_names[runtime], marker=markers[runtime])
                 
                 # plt.title(f'{trace_label} E2E Latency Over Time (Aggregated by {aggregation_func.__name__.title()})')
-                axes[index].set_title(subplot_titles[index], y=-0.4, fontproperties=font_props)
+                axes[index].set_title(subplot_titles[index], y=-0.4, fontsize=12)
+                # axes[index].set_title(subplot_titles[index], y=-0.4, fontproperties=font_props)
                 axes[index].set_xlabel('Time (minutes)')
                 if index == 0:
                     axes[index].set_ylabel('E2E Latency (s)')
@@ -1118,6 +1312,8 @@ def draw_evaluation_performance_breakdown():
     plt.show()
 
 if __name__ == "__main__":
+    # calc_motivation_cold_start()
+    draw_motivation_cold_start()
     # draw_motivation()
     # draw_comparison()
     # draw_cprofile()
@@ -1128,4 +1324,4 @@ if __name__ == "__main__":
     # draw_chosen_trace()
     # draw_evaluation_trace_test()
     # draw_evaluation_simulation()
-    draw_evaluation_performance_breakdown()
+    # draw_evaluation_performance_breakdown()
