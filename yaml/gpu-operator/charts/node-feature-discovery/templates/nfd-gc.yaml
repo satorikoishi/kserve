@@ -32,7 +32,7 @@ spec:
         {}
       containers:
       - name: gc
-        image: "registry.lank8s.cn/nfd/node-feature-discovery:v0.14.2"
+        image: "k8s.m.daocloud.io/nfd/node-feature-discovery:v0.14.2"
         imagePullPolicy: "IfNotPresent"
         env:
         - name: NODE_NAME

@@ -39,7 +39,7 @@ spec:
               - ALL
             readOnlyRootFilesystem: true
             runAsNonRoot: true
-          image: "registry.lank8s.cn/nfd/node-feature-discovery:v0.14.2"
+          image: "k8s.m.daocloud.io/nfd/node-feature-discovery:v0.14.2"
           imagePullPolicy: IfNotPresent
           livenessProbe:
             exec:
