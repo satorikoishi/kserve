@@ -30,7 +30,7 @@ def download_and_save_model(model_name, save_directory):
     elif 'bert' in model_name:
         model = BertForSequenceClassification.from_pretrained(model_name, config=config)
     else:
-        model = AutoModelForCausalLM.from_pretrained(model_name)
+        model = AutoModelForCausalLM.from_pretrained(model_name, torch_dtype=torch.float16)
         # assert False, f"Unknown model: {model_name}"
     model.save_pretrained(save_directory, max_shard_size="512GB")
     torch.save(model, os.path.join(save_directory, "model.pt"))
@@ -70,11 +70,17 @@ def main():
     parser = argparse.ArgumentParser(description="Download a Hugging Face model with its config and tokenizer.")
     parser.add_argument("--model_name", "-m", type=str, required=True, help="The name of the model to download.")
     # parser.add_argument("--save_mode", "-s", required=False, type=str, default="pretrained", help="Save mode(pretained or ts).")
-    
+    parser.add_argument(
+        "--save_directory", 
+        "-d",
+        type=str, 
+        default=os.path.join(os.path.dirname(__file__), f"../model_archive"),
+        help="Directory where the model will be saved."
+    )
     args = parser.parse_args()
     model_name = args.model_name
     model_basename = get_model_basename(model_name)
-    save_directory = os.path.join(os.path.dirname(__file__), f"../model_archive/{model_basename}")
+    save_directory = os.path.join(args.save_directory, f"{model_basename}")
 
     download_and_save_model(model_name, save_directory)
     

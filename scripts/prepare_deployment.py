@@ -8,6 +8,9 @@ from kubernetes import client, config
 from kubernetes.stream import stream
 from utils import get_model_basename, get_model_seriesname
 
+def is_large_model(model_basename):
+    return '30b' in model_basename or '32B' in model_basename
+
 def prepare_setup_config(setup_config_file_path, args):
     print(f"Preparing setup_config file: {setup_config_file_path}")
     if os.path.exists(setup_config_file_path):
@@ -120,8 +123,11 @@ def generate_yaml(model_basename, model_seriesname, template_yaml, yaml_dir):
     target_yaml = os.path.join(yaml_dir, f"{model_basename}.yaml")
     replacements = {
         "METADATA_NAME": model_seriesname,
-        "STORAGE_DIR": model_basename
+        "STORAGE_DIR": model_basename,
+        "NUM_GPU": "1"
     }
+    if is_large_model(model_basename):
+        replacements["NUM_GPU"] = "2"
     try:
         with open(template_yaml, 'r') as file:
             content = file.read()
@@ -144,19 +150,29 @@ def main():
     parser.add_argument("--tl", action='store_true', help="Use torch load pt file.")
     parser.add_argument("--noarch", action='store_true', help="Use no-archive instead of .mar file.")
     parser.add_argument("--scaletest", action='store_true', help="Generate scale test yaml.")
+    parser.add_argument(
+        "--dir", 
+        "-d",
+        type=str, 
+        default=os.path.join(os.path.dirname(__file__), f"../model_archive"),
+        help="Directory where the model will be saved."
+    )
     
     args = parser.parse_args()
     model_name = args.model_name
     model_basename = get_model_basename(model_name)
     model_seriesname = get_model_seriesname(model_basename)
-    save_directory = os.path.join(os.path.dirname(__file__), f"../model_archive/{model_basename}")
+    save_directory = os.path.join(args.dir, f"{model_basename}")
     handler_dir = os.path.join(os.path.dirname(__file__), f"../model_archive/handler")
     config_template_dir = os.path.join(os.path.dirname(__file__), f"../model_archive/config")
     yaml_dir = os.path.join(os.path.dirname(__file__), f"../yaml/test")
     requirements_file = os.path.join(save_directory, "requirements.txt")
     requirements_template_dir = os.path.join(os.path.dirname(__file__), f"../model_archive/requirements")
     model_fname = "model.pt" if args.tl else "model.safetensors"
-    handler_fname=f"{model_seriesname}_handler.py"
+    if is_large_model(model_basename):
+        handler_fname=f"large_model_handler.py"
+    else:
+        handler_fname=f"{model_seriesname}_handler.py"
     
     # if args.tl:
     #     handler_fname=f"{model_seriesname}_handler_tl.py"

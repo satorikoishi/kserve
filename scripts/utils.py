@@ -87,7 +87,7 @@ def get_model_seriesname(model_basename):
     if len(series_parts) > 2:
         if 't5' in model_basename:
             series_name = '-'.join(series_parts[:-1])
-        elif 'bert' in model_basename:
+        elif 'bert' in model_basename or 'DeepSeek' in model_basename:
             series_name = series_parts[0]
         else:
             assert False, f"Unknown model {model_basename}, need further check"
