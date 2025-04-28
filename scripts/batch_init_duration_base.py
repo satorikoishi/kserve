@@ -5,12 +5,34 @@ import time
 from utils import wait_for_pods_termination, get_model_seriesname, prepare_deployment
 from utils import switch_torchserve_config
 
-model_name_list = ["bloom-560m", 
-                   "flan-t5-small", "flan-t5-base", "flan-t5-large", 
-                   "bert-base-uncased", "bert-large-uncased"]
+# model_name_list = ["bloom-560m", 
+#                    "flan-t5-small", "flan-t5-base", "flan-t5-large", 
+#                    "bert-base-uncased", "bert-large-uncased"]
+# model_name_list = ["DeepSeek-R1-Distill-Qwen-32B"]
+model_name_list = ["opt-30b"]
 runtime_config = ["base", "baseplus", "opt"]
-# runtime_config = ["baseplus"]
+# runtime_config = ["opt"]
 
+def wait_until_model_ready(model_seriesname, runtime, timeout=7200, interval=10):
+    """Wait until init_duration.py succeeds, or timeout."""
+    start_time = time.time()
+    cmd = f"python3 ./scripts/init_duration.py -p {model_seriesname} --resdir comparison/{runtime}"
+    if runtime == "opt":
+        cmd += " --pp"
+
+    while True:
+        try:
+            subprocess.run(cmd, shell=True, check=True)
+            print(f"Model {model_seriesname} is ready.")
+            return True
+        except subprocess.CalledProcessError:
+            # Model not ready yet
+            if time.time() - start_time > timeout:
+                print(f"Timeout waiting for model {model_seriesname} to be ready.")
+                return False
+            print(f"Waiting for model {model_seriesname} to be ready...")
+            time.sleep(interval)
+            
 def main():
     for runtime in runtime_config:
         # Switch runtime
@@ -34,11 +56,7 @@ def main():
                     assert False, f"Unknown runtime: {runtime}"
                 subprocess.run(f"kubectl apply -f {yaml_path}", shell=True, check=True)
                 # Wait and collect init data
-                time.sleep(600)
-                cmd = f"python3 ./scripts/init_duration.py -p {model_seriesname} --resdir comparison/{runtime}"
-                if runtime == "opt":
-                    cmd += " --pp"
-                subprocess.run(cmd, shell=True, check=True)
+                wait_until_model_ready(model_seriesname, runtime)
             except Exception as e:
                 print(f"An unexpected error occurred: {str(e)}")
             finally:

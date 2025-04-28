@@ -93,6 +93,7 @@ def get_model_seriesname(model_basename):
             assert False, f"Unknown model {model_basename}, need further check"
     else:
         series_name = series_parts[0]
+    series_name = series_name.lower()
     return series_name
 
 def get_endpoint_name(model_name):
