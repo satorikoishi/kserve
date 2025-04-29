@@ -8,9 +8,10 @@ from utils import switch_torchserve_config
 # model_name_list = ["bloom-560m", 
 #                    "flan-t5-small", "flan-t5-base", "flan-t5-large", 
 #                    "bert-base-uncased", "bert-large-uncased"]
-# model_name_list = ["DeepSeek-R1-Distill-Qwen-32B"]
-model_name_list = ["opt-30b"]
-runtime_config = ["base", "baseplus", "opt"]
+model_name_list = ["Llama-2-13b-hf"]
+# model_name_list = ["opt-30b", "Llama-2-13b-hf"]
+# runtime_config = ["base", "baseplus", "opt"]
+runtime_config = ["base", "baseplus"]
 # runtime_config = ["opt"]
 
 def wait_until_model_ready(model_seriesname, runtime, timeout=7200, interval=10):

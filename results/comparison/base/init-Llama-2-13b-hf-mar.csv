@@ -1,0 +1,12 @@
+Event,Duration
+Storage Init,5.0
+Kserve Container Init,1.0
+First Log,1.585
+Load Config,0.159
+Unzip Model Archive,326.165
+Setup Model Dependency,19.854
+Start Torch Worker,1.964
+Worker Load Model,97.861
+Service Ready,0.005
+Total,453.593
+Total App,446.008
