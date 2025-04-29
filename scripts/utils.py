@@ -89,6 +89,8 @@ def get_model_seriesname(model_basename):
             series_name = '-'.join(series_parts[:-1])
         elif 'bert' in model_basename or 'DeepSeek' in model_basename:
             series_name = series_parts[0]
+        elif 'Llama-2' in model_basename:
+            series_name = '-'.join(series_parts[:2])
         else:
             assert False, f"Unknown model {model_basename}, need further check"
     else:
@@ -227,7 +229,7 @@ def switch_torchserve_config(runtime):
         if image['name'] == 'kserve-torchserve':
             if runtime == 'opt':
                 image['newName'] = 'jwkaguya/torchserve-kfs'
-                image['newTag'] = '0.4.2'
+                image['newTag'] = '0.4.3'
             elif runtime == 'base':
                 image['newName'] = 'pytorch/torchserve-kfs'
                 image['newTag'] = '0.8.2'

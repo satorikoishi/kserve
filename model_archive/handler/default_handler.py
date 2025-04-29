@@ -70,7 +70,6 @@ class TransformersSeqClassifierHandler(BaseHandler, ABC):
 
         if self.setup_config["use_torchload"]:
             self.model = torch.load(f"{model_dir}/model.pt")
-            self.model.to(self.device)
         else:
             self.model = AutoModelForCausalLM.from_pretrained(
                 model_dir

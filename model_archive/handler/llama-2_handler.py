@@ -9,8 +9,6 @@ import transformers
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
 from ts.torch_handler.base_handler import BaseHandler
-from transformers.models.opt.modeling_opt import OPTForCausalLM
-torch.serialization.add_safe_globals({"transformers.models.opt.modeling_opt.OPTForCausalLM": OPTForCausalLM})
 
 logger = logging.getLogger(__name__)
 logger.propagate = False
@@ -23,6 +21,11 @@ handler.setFormatter(formatter)
 logger.addHandler(handler)
 logger.info("Transformers version %s", transformers.__version__)
 
+# from transformers.models.llama.modeling_llama import LlamaForCausalLM
+
+# torch.serialization.add_safe_globals({
+#     "transformers.models.llama.modeling_llama.LlamaForCausalLM": LlamaForCausalLM
+# })
 
 TORCH_DTYPES = {
     "float16": torch.float16,
@@ -52,11 +55,11 @@ class TransformersSeqClassifierHandler(BaseHandler, ABC):
         properties = ctx.system_properties
         model_dir = properties.get("model_dir")
 
-        # self.device = torch.device(
-        #     "cuda:" + str(properties.get("gpu_id"))
-        #     if torch.cuda.is_available() and properties.get("gpu_id") is not None
-        #     else "cpu"
-        # )
+        self.device = torch.device(
+            "cuda:" + str(properties.get("gpu_id"))
+            if torch.cuda.is_available() and properties.get("gpu_id") is not None
+            else "cpu"
+        )
         # Loading the model and tokenizer from checkpoint and config files based on the user's choice of mode
         # further setup config can be added.
         # with zipfile.ZipFile(model_dir + "/model.zip", "r") as zip_ref:
@@ -71,18 +74,16 @@ class TransformersSeqClassifierHandler(BaseHandler, ABC):
             logger.warning("Missing the setup_config.json file.")
 
         if self.setup_config["use_torchload"]:
-            self.model = torch.load(f"{model_dir}/model.pt", 
-                                    map_location={"cuda:1": "cuda:0"})
+            self.model = torch.load(f"{model_dir}/model.pt")
         else:
             self.model = AutoModelForCausalLM.from_pretrained(
-                model_dir,
-                device_map="auto",
-                torch_dtype=torch.float16
+                model_dir, torch_dtype=torch.float16
             )
 
         self.tokenizer = AutoTokenizer.from_pretrained(
             model_dir, return_tensors="pt"
         )
+        self.model.to(self.device)
 
         self.model.eval()
         logger.info("Transformer model from path %s loaded successfully", model_dir)

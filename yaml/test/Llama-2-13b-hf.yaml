@@ -1,19 +1,19 @@
 apiVersion: serving.kserve.io/v1beta1
 kind: InferenceService
 metadata:
-  name: "deepseek"
+  name: "llama-2"
 spec:
   predictor:
     model:
       modelFormat:
         name: pytorch
-      storageUri: pvc://task-pv-claim/DeepSeek-R1-Distill-Qwen-32B
+      storageUri: pvc://task-pv-claim/Llama-2-13b-hf
       resources:
         limits:
           cpu: "2"
           memory: 128Gi
-          nvidia.com/gpu: "2"
+          nvidia.com/gpu: "1"
         requests:
           cpu: "2"
           memory: 128Gi
-          nvidia.com/gpu: "2"
+          nvidia.com/gpu: "1"
