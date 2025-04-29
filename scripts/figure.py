@@ -12,7 +12,7 @@ from matplotlib.font_manager import FontProperties
 # model_name_list = ["bloom-560m", "bert-large-uncased"]
 model_name_list = ["bert-base-uncased", "bert-large-uncased", 
                    "flan-t5-small", "flan-t5-base", "flan-t5-large", "bloom-560m"]
-additional_model_name_list = ["bloom-7b1", "opt-1.3b", "opt-6.7b"]
+additional_model_name_list = ["bloom-7b1", "opt-1.3b", "opt-6.7b", "opt-30b", "Llama-2-13b-hf"]
 # runtime_config = ["base"]
 full_runtime_config = ["base", "opt"]
 methods = ["Load Pretrained", "Load State Dict"]
@@ -1313,12 +1313,12 @@ def draw_evaluation_performance_breakdown():
 
 if __name__ == "__main__":
     # calc_motivation_cold_start()
-    draw_motivation_cold_start()
+    # draw_motivation_cold_start()
     # draw_motivation()
     # draw_comparison()
     # draw_cprofile()
     # draw_sagemaker()
-    # draw_evaluation_base()
+    draw_evaluation_base()
     # draw_inference()
     # draw_resource()
     # draw_chosen_trace()
