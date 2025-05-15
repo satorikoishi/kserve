@@ -53,16 +53,24 @@ if __name__ == "__main__":
     combined_list = med_trace_list + tail_trace_list
     
     technique_list = ["keepalive", "oracle"]
+    keepalive_list = []
+    time_list = []
     
-    for tech in technique_list:
-        print(f"Analyzing: {tech}")
-        
+    for tech in technique_list:        
         keepalive, time = read_data(os.path.join(os.path.dirname(__file__), f"../results/simulation/prewarm/{tech}"))
+        keepalive_list.append(keepalive)
+        time_list.append(time)
+        
+    for i, trace in enumerate(combined_list):
+        print(f"Trace: {combined_list[i]}, idx {i}")
+        for j, tech in enumerate(technique_list):
+            keepalive = keepalive_list[j]
+            time = time_list[j]
 
-        for i, trace in enumerate(combined_list):
             trace_keepalive = keepalive[i]
             trace_time = time[i]
-            print(f"Trace: {combined_list[i]}, idx {i}")
+            print(f"Technique: {tech}")
+            
             print(f"STAT: Keepalive cost")
             stats(trace_keepalive)
             print(f"STAT: Service time")
