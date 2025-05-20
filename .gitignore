@@ -73,3 +73,8 @@ model_archive/*
 !/model_archive/sagemaker
 scripts/setup_config.json
 scripts/microtest.py
+
+# Results got from simulation/predict.py
+results/simulation/prewarm/**/*.txt
+results/simulation/prewarm/**/*.png
+results/simulation/prewarm/**/*.pdf

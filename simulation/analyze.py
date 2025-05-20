@@ -2,6 +2,12 @@ import os
 import numpy as np
 import matplotlib.pyplot as plt
 
+def check_cold_start(service_time):
+    if service_time > 1.0:
+        return 1
+    else:
+        return 0
+
 def read_data(basedir):
     dir_name=[]
     for item in med_trace_list:
@@ -41,7 +47,7 @@ def read_data(basedir):
         
     return(keepalive, time, predicted, actual)
 
-def stats(numbers):
+def stats(numbers, calc_cold=False):
     stats = {
         "sum": sum(numbers),
         "avg": sum(numbers)/len(numbers),
@@ -55,6 +61,9 @@ def stats(numbers):
         "90th": np.percentile(numbers, 90),
         "95th": np.percentile(numbers, 95),
     }
+    
+    if calc_cold:
+        stats["cold_start_ratio"] = sum(check_cold_start(t) for t in numbers) / len(numbers)
     
     for k, v in stats.items():
         print(f"{k}: {v}")
@@ -96,6 +105,38 @@ def plot_metrics_grouped(metric_dict_per_tech, title, ylabel):
     plt.legend()
     plt.grid(axis='y', linestyle='--', alpha=0.6)
     plt.tight_layout()
+    plt.savefig(os.path.join(os.path.dirname(__file__), f"../results/simulation/prewarm/{title}.pdf"))
+    plt.show()
+
+def plot_percentile_bars_with_error(p50_dict, p90_dict, p95_dict, title, ylabel):
+    techniques = list(p90_dict.keys())
+    num_traces = len(combined_list)
+    bar_width = 0.2
+    x = np.arange(num_traces)
+
+    plt.figure(figsize=(10, 5))
+
+    for i, tech in enumerate(techniques):
+        # Core bar values
+        p90_values = p90_dict[tech]
+        p50_values = p50_dict[tech]
+        p95_values = p95_dict[tech]
+
+        # Compute asymmetric error bars
+        lower_err = np.array(p90_values) - np.array(p50_values)
+        upper_err = np.array(p95_values) - np.array(p90_values)
+        error = [lower_err, upper_err]
+
+        offsets = x + (i - len(techniques) / 2) * bar_width + bar_width / 2
+
+        plt.bar(offsets, p90_values, width=bar_width, label=tech, yerr=error, capsize=5)
+
+    plt.title(title)
+    plt.ylabel(ylabel)
+    plt.xticks(x, trace_legend_list)
+    plt.legend()
+    plt.grid(axis='y', linestyle='--', alpha=0.6)
+    plt.tight_layout()
     plt.show()
     
 def plot_prediction(predicted_dict, trace_i, actual, chunk_size=1000):
@@ -126,8 +167,10 @@ def plot_prediction(predicted_dict, trace_i, actual, chunk_size=1000):
         # input("Press Enter to continue to next chunk...")
     
 if __name__ == "__main__":
-    med_trace_list = [249] 
-    tail_trace_list = [9]
+    # med_trace_list = [249] 
+    # tail_trace_list = [9]
+    med_trace_list = [249, 757, 1385, 1489, 1717, 1721] 
+    tail_trace_list = [9,15,18,19,21,22]
     combined_list = med_trace_list + tail_trace_list
     trace_legend_list = [f"med_{tid}" for tid in med_trace_list] + [f"tail_{tid}" for tid in tail_trace_list]
     print(trace_legend_list)
@@ -151,6 +194,14 @@ if __name__ == "__main__":
     
     keepalive_avg_all = {tech: [] for tech in technique_list}
     time_avg_all = {tech: [] for tech in technique_list}
+    csratio_all = {tech: [] for tech in technique_list}
+    ka_p50 = {tech: [] for tech in technique_list}
+    ka_p90 = {tech: [] for tech in technique_list}
+    ka_p95 = {tech: [] for tech in technique_list}
+    time_p50 = {tech: [] for tech in technique_list}
+    time_p90 = {tech: [] for tech in technique_list}
+    time_p95 = {tech: [] for tech in technique_list}
+    
     for i, trace in enumerate(combined_list):
         print(" ")
         print(f"Trace: {combined_list[i]}, idx {i}")
@@ -160,14 +211,28 @@ if __name__ == "__main__":
             print(f"Technique: {tech}")
             
             print(f"STAT: Keepalive cost")
-            stat_ka, per_ka = stats(keepalive_dict[tech][i])
+            stat_ka, pct_ka = stats(keepalive_dict[tech][i])
             print(f"STAT: Service time")
-            stat_time, per_time = stats(time_dict[tech][i])
+            stat_time, pct_time = stats(time_dict[tech][i], True)
             
             keepalive_avg_all[tech].append(stat_ka["avg"])
             time_avg_all[tech].append(stat_time["avg"])
+            csratio_all[tech].append(stat_time["cold_start_ratio"])
+            ka_p50[tech].append(pct_ka["50th"])
+            ka_p90[tech].append(pct_ka["90th"])
+            ka_p95[tech].append(pct_ka["95th"])
+            time_p50[tech].append(pct_time["50th"])
+            time_p90[tech].append(pct_time["90th"])
+            time_p95[tech].append(pct_time["95th"])
         
         # plot_prediction(predicted_dict, i, actual[i])
         
     plot_metrics_grouped(keepalive_avg_all, "Average Keepalive Cost", "Keepalive Cost")
     plot_metrics_grouped(time_avg_all, "Average Service Time", "Service Time")
+    plot_metrics_grouped(csratio_all, "Cold Start Ratio", "Cold Start %")
+    # plot_percentile_bars_with_error(ka_p50, ka_p90, ka_p95,
+    #                             title="Keepalive Cost (P90 with P50–P95 Error Bars)",
+    #                             ylabel="Keepalive Cost")
+    # plot_percentile_bars_with_error(time_p50, time_p90, time_p95,
+    #                             title="Service Time (P90 with P50–P95 Error Bars)",
+    #                             ylabel="Service Time")
