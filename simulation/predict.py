@@ -1,5 +1,27 @@
 import os
 import shutil
+import numpy as np
+from numpy import fft
+
+def fourierExtrapolation(x, n_predict):
+    n = x.size
+    n_harm = harmonics              # number of harmonics in model
+    t = np.arange(0, n)
+    p = np.polyfit(t, x, 1)         # find linear trend in x
+    x_notrend = x - p[0] * t        # detrended x
+    x_freqdom = fft.fft(x_notrend)  # detrended x in frequency domain
+    f = fft.fftfreq(n)              # frequencies
+    indexes = list(range(n))
+    # sort indexes by frequency, lower -> higher
+    indexes.sort(key = lambda i: np.absolute(f[i]))
+ 
+    t = np.arange(0, n + n_predict)
+    restored_sig = np.zeros(t.size)
+    for i in indexes[:1 + n_harm * 2]:
+        ampli = np.absolute(x_freqdom[i]) / n   # amplitude
+        phase = np.angle(x_freqdom[i])          # phase
+        restored_sig += ampli * np.cos(2 * np.pi * f[i] * t + phase)
+    return restored_sig + p[0] * t
 
 def write_results(basedir):
     if os.path.exists(basedir):
@@ -81,6 +103,22 @@ def controller_keepalive():
     
     selected_system = 1
 
+def controller_fft():
+    for j in range(local_window, len(trace_list[0])):
+        for i in range(len(trace_list)):
+            training_trace=np.array(trace_list[i][j-local_window:j])
+            n_predict = 1
+            extrapolation = fourierExtrapolation(training_trace, n_predict)
+            pred_value=extrapolation[len(extrapolation)-1]
+            if pred_value <0:
+                pred_value=0
+            else:
+                pred_value=round(pred_value)
+            
+            real_value=trace_list[i][j]
+            real_list[i].append(real_value)
+            predicted_list[i].append(pred_value)
+
 def run():
     keepalive_cost_list=[[] for i in range(len(trace_list))]
     running_cost_list=[[] for i in range(len(trace_list))]
@@ -111,6 +149,8 @@ def run():
                     for s in time_val_list:
                         time_list[i].append(s)
 
+                # print(f"{j} {i} {re} {pr} {time_val_list}")
+                
             # if selected_system==0:
             #     exe_time=exe_time_costly[i]
             #     cs_time=cs_time_costly[i]
@@ -132,10 +172,10 @@ def run():
     return (keepalive_cost_list, running_cost_list, time_list)        
 
 if __name__ == "__main__":
-    med_trace_list = [249] 
-    tail_trace_list = [9]
-    # med_trace_list = [249, 757, 1385, 1489, 1717, 1721] 
-    # tail_trace_list = [9,15,18,19,21,22]
+    # med_trace_list = [249] 
+    # tail_trace_list = [9]
+    med_trace_list = [249, 757, 1385, 1489, 1717, 1721] 
+    tail_trace_list = [9,15,18,19,21,22]
     
     exe_time_list = [0.2] * 12
     cs_time_gpu = [1] * 12
@@ -161,6 +201,7 @@ if __name__ == "__main__":
 
     trace_list=[[i*7 for i in trace] for trace in trace_list]##
     
+    harmonics=10#
     local_window=60#
     prediction_history_window=local_window#
     
@@ -203,4 +244,21 @@ if __name__ == "__main__":
     print(time_list)
     
     write_results(os.path.join(os.path.dirname(__file__), "../results/simulation/prewarm/oracle"))
+    
+    # Technique
+    real_list=[[] for i in range(len(trace_list))]
+    predicted_list=[[] for i in range(len(trace_list))]
+    selected_system_list=[[] for i in range(len(trace_list))]
+
+    controller_fft()
+    
+    print(real_list)
+    print(predicted_list)
+    
+    keepalive_cost_list, running_cost_list, time_list = run()
+    print(keepalive_cost_list)
+    print(running_cost_list)
+    print(time_list)
+    
+    write_results(os.path.join(os.path.dirname(__file__), "../results/simulation/prewarm/fft"))
     
