@@ -14,13 +14,102 @@ def fourierExtrapolation(x, n_predict):
     indexes = list(range(n))
     # sort indexes by frequency, lower -> higher
     indexes.sort(key = lambda i: np.absolute(f[i]))
- 
+    
+    selected = indexes[:1 + n_harm * 2]
+    
     t = np.arange(0, n + n_predict)
     restored_sig = np.zeros(t.size)
-    for i in indexes[:1 + n_harm * 2]:
+    # print(f"p0t {p[0] * t}")
+    # print(f"index {indexes}")
+    
+    for loop_idx, i in enumerate(selected):
         ampli = np.absolute(x_freqdom[i]) / n   # amplitude
         phase = np.angle(x_freqdom[i])          # phase
-        restored_sig += ampli * np.cos(2 * np.pi * f[i] * t + phase)
+        term = ampli * np.cos(2 * np.pi * f[i] * t + phase)
+        restored_sig += term
+        # print(f"term {term}")
+        # print(f"rs {restored_sig}")
+        
+        # if loop_idx == 0:
+        #     first_rs = restored_sig.copy()
+        #     print(f"first_rs {first_rs}")
+        # if loop_idx == len(selected) - 1:
+        #     final_rs = restored_sig.copy()
+        #     print(f"final_rs {final_rs}")
+        #     print(f"rs_diff {final_rs - first_rs}")
+            
+    return restored_sig + p[0] * t
+
+# def fourierExtrapolationWithFactor(x, n_predict, factor=2.0):
+#     n = x.size
+#     n_harm = harmonics              # number of harmonics in model
+#     t = np.arange(0, n)
+#     p = np.polyfit(t, x, 1)         # find linear trend in x
+#     x_notrend = x - p[0] * t        # detrended x
+#     x_freqdom = fft.fft(x_notrend)  # detrended x in frequency domain
+#     f = fft.fftfreq(n)              # frequencies
+#     indexes = list(range(n))
+#     # sort indexes by frequency, lower -> higher
+#     indexes.sort(key = lambda i: np.absolute(f[i]))
+ 
+#     t = np.arange(0, n + n_predict)
+#     restored_sig = np.zeros(t.size)
+#     for i in indexes[:1 + n_harm * 2]:
+#         if i not in (0, n//2):
+#             ampli = factor * np.abs(x_freqdom[i]) / n    # amplitude with factor
+#         else:
+#             ampli = np.abs(x_freqdom[i]) / n    # amplitude
+#         phase = np.angle(x_freqdom[i])          # phase
+#         restored_sig += ampli * np.cos(2 * np.pi * f[i] * t + phase)
+#     return restored_sig + p[0] * t
+
+def fourierExtrapolationBias(x, n_predict, alpha=2.0, beta=1.0):
+    n = x.size
+    n_harm = harmonics              # number of harmonics in model
+    t = np.arange(0, n)
+    p = np.polyfit(t, x, 1)         # find linear trend in x
+    x_notrend = x - p[0] * t        # detrended x
+    x_freqdom = fft.fft(x_notrend)  # detrended x in frequency domain
+    f = fft.fftfreq(n)              # frequencies
+    indexes = list(range(n))
+    # sort indexes by frequency, lower -> higher
+    indexes.sort(key = lambda i: np.absolute(f[i]))
+    selected = indexes[:1 + n_harm * 2]
+    
+    t = np.arange(0, n + n_predict)
+    restored_sig = np.zeros(t.size)
+    
+    # print(f"p0t {p[0] * t}")
+    # print(f"selected {selected}")
+    
+    for loop_idx, i in enumerate(selected):
+        # print(f"n {n}, i {i}, loop_idx {loop_idx}")
+        if i not in (0, n//2):
+            ampli = alpha * np.abs(x_freqdom[i]) / n    # amplitude with factor
+        else:
+            ampli = np.abs(x_freqdom[i]) / n    # amplitude
+        phase = np.angle(x_freqdom[i])          # phase
+        term = ampli * np.cos(2 * np.pi * f[i] * t + phase)
+        if i in (0, n//2):
+            bias = 1.0
+        else:
+            bias = beta
+        bias_term = np.where(term >= 0,
+                    term,
+                    bias  * term)
+        restored_sig += bias_term
+        # print(f"term {term}")
+        # print(f"bias {bias}, bias term {bias_term}")
+        # print(f"rs {restored_sig}")
+        
+        # if loop_idx == 0:
+        #     first_rs = restored_sig.copy()
+        #     print(f"first_rs {first_rs}")
+        # if loop_idx == len(selected) - 1:
+        #     final_rs = restored_sig.copy()
+        #     print(f"final_rs {final_rs}")
+        #     print(f"rs_diff {final_rs - first_rs}")
+        
     return restored_sig + p[0] * t
 
 def write_results(basedir):
@@ -99,7 +188,8 @@ def controller_keepalive():
             real_list[i].append(real_value)
         
     for i in range(len(trace_list)):
-        predicted_list[i].pop()
+        while len(predicted_list[i]) > len(real_list[i]):
+            predicted_list[i].pop()
     
     selected_system = 1
 
@@ -110,6 +200,60 @@ def controller_fft():
             n_predict = 1
             extrapolation = fourierExtrapolation(training_trace, n_predict)
             pred_value=extrapolation[len(extrapolation)-1]
+            # print(f"Extrap: {extrapolation}")
+            # print(f"Prediction: {pred_value}")
+            if pred_value <0:
+                pred_value=0
+            else:
+                pred_value=round(pred_value)
+            
+            real_value=trace_list[i][j]
+            real_list[i].append(real_value)
+            predicted_list[i].append(pred_value)
+            
+# def controller_fft_factor():
+#     for j in range(local_window, len(trace_list[0])):
+#         for i in range(len(trace_list)):
+#             training_trace=np.array(trace_list[i][j-local_window:j])
+#             n_predict = 1
+#             extrapolation = fourierExtrapolationWithFactor(training_trace, n_predict)
+#             pred_value=extrapolation[len(extrapolation)-1]
+#             if pred_value <0:
+#                 pred_value=0
+#             else:
+#                 pred_value=round(pred_value)
+            
+#             real_value=trace_list[i][j]
+#             real_list[i].append(real_value)
+#             predicted_list[i].append(pred_value)
+
+def controller_fft_bias():
+    for j in range(local_window, len(trace_list[0])):
+        for i in range(len(trace_list)):
+            training_trace=np.array(trace_list[i][j-local_window:j])
+            n_predict = 1
+            extrapolation = fourierExtrapolationBias(training_trace, n_predict)
+            pred_value=extrapolation[len(extrapolation)-1]
+            # print(f"Extrap: {extrapolation}")
+            # print(f"Prediction: {pred_value}")
+            if pred_value <0:
+                pred_value=0
+            else:
+                pred_value=round(pred_value)
+            
+            real_value=trace_list[i][j]
+            real_list[i].append(real_value)
+            predicted_list[i].append(pred_value)
+
+def controller_fft_biasplus():
+    for j in range(local_window, len(trace_list[0])):
+        for i in range(len(trace_list)):
+            training_trace=np.array(trace_list[i][j-local_window:j])
+            n_predict = 1
+            extrapolation = fourierExtrapolationBias(training_trace, n_predict, 2, 0)
+            pred_value=extrapolation[len(extrapolation)-1]
+            # print(f"Extrap: {extrapolation}")
+            # print(f"Prediction: {pred_value}")
             if pred_value <0:
                 pred_value=0
             else:
@@ -206,7 +350,7 @@ if __name__ == "__main__":
     prediction_history_window=local_window#
     
     # # Minor test
-    # truncate = 20
+    # truncate = 2
     # trace_list=[trace[:truncate + local_window] for trace in trace_list]
     # print(trace_list)
     
@@ -261,4 +405,55 @@ if __name__ == "__main__":
     print(time_list)
     
     write_results(os.path.join(os.path.dirname(__file__), "../results/simulation/prewarm/fft"))
+    
+    # # Single factor
+    # real_list=[[] for i in range(len(trace_list))]
+    # predicted_list=[[] for i in range(len(trace_list))]
+    # selected_system_list=[[] for i in range(len(trace_list))]
+
+    # controller_fft_factor()
+    
+    # print(real_list)
+    # print(predicted_list)
+    
+    # keepalive_cost_list, running_cost_list, time_list = run()
+    # print(keepalive_cost_list)
+    # print(running_cost_list)
+    # print(time_list)
+    
+    # write_results(os.path.join(os.path.dirname(__file__), "../results/simulation/prewarm/fft_factor"))
+    
+    # Bias 2, 1
+    real_list=[[] for i in range(len(trace_list))]
+    predicted_list=[[] for i in range(len(trace_list))]
+    selected_system_list=[[] for i in range(len(trace_list))]
+
+    controller_fft_bias()
+    
+    print(real_list)
+    print(predicted_list)
+    
+    keepalive_cost_list, running_cost_list, time_list = run()
+    print(keepalive_cost_list)
+    print(running_cost_list)
+    print(time_list)
+    
+    write_results(os.path.join(os.path.dirname(__file__), "../results/simulation/prewarm/fft_bias"))
+    
+    # Bias 2, 0.7
+    real_list=[[] for i in range(len(trace_list))]
+    predicted_list=[[] for i in range(len(trace_list))]
+    selected_system_list=[[] for i in range(len(trace_list))]
+
+    controller_fft_biasplus()
+    
+    print(real_list)
+    print(predicted_list)
+    
+    keepalive_cost_list, running_cost_list, time_list = run()
+    print(keepalive_cost_list)
+    print(running_cost_list)
+    print(time_list)
+    
+    write_results(os.path.join(os.path.dirname(__file__), "../results/simulation/prewarm/fft_biasplus"))
     
