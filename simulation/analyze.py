@@ -2,6 +2,19 @@ import os
 import numpy as np
 import matplotlib.pyplot as plt
 
+def compute_avg_cost_and_latency(keepalive_cost_list, time_list):
+    avg_cost = sum(x for trace in keepalive_cost_list for x in trace) / \
+            sum(len(trace) for trace in keepalive_cost_list)
+    avg_latency = sum(x for trace in time_list for x in trace) / \
+                sum(len(trace) for trace in time_list)
+    return avg_cost, avg_latency
+
+def compute_overall_cost(keepalive_cost_list, time_list):
+    cost_per_min_gpu = 0.526 / 60
+    total_cost = sum(x for trace in keepalive_cost_list for x in trace)
+    total_service_time = sum(x for trace in time_list for x in trace)
+    return total_cost + total_service_time * cost_per_min_gpu
+
 def check_cold_start(service_time):
     if service_time > 1.0:
         return 1
@@ -167,15 +180,17 @@ def plot_prediction(predicted_dict, trace_i, actual, chunk_size=1000):
         # input("Press Enter to continue to next chunk...")
     
 if __name__ == "__main__":
-    # med_trace_list = [249] 
-    # tail_trace_list = [9]
-    med_trace_list = [249, 757, 1385, 1489, 1717, 1721] 
+    med_trace_list = [249] 
+    tail_trace_list = [9]
+    med_trace_list = [249, 1385, 1489, 1717, 1721] 
     tail_trace_list = [9,15,18,19,21,22]
+    # med_trace_list = [249, 757, 1385, 1489, 1717, 1721] 
+    # tail_trace_list = [9,15,18,19,21,22]
     combined_list = med_trace_list + tail_trace_list
     trace_legend_list = [f"med_{tid}" for tid in med_trace_list] + [f"tail_{tid}" for tid in tail_trace_list]
     print(trace_legend_list)
     
-    technique_list = ["keepalive", "oracle", "fft", "fft_bias", "fft_biasplus"]
+    technique_list = ["keepalive", "fft", "fft_bias", "fft_biasplus", "oracle", "fallserve"]
     keepalive_dict = {}
     time_dict = {}
     predicted_dict = {}
@@ -191,6 +206,11 @@ if __name__ == "__main__":
         else:
             if not np.allclose(actual, cur_actual):
                 raise ValueError("Actual trace not close")
+        avg_cost, avg_lat = compute_avg_cost_and_latency(keepalive, time)
+        total_cost = compute_overall_cost(keepalive, time)
+        print(f'Tech: {tech}, cost {avg_cost}, latency {avg_lat}, total {total_cost}')
+    
+    # exit(0)
     
     keepalive_avg_all = {tech: [] for tech in technique_list}
     time_avg_all = {tech: [] for tech in technique_list}

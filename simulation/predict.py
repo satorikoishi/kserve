@@ -2,6 +2,59 @@ import os
 import shutil
 import numpy as np
 from numpy import fft
+import optuna
+from optuna.samplers import NSGAIISampler
+import optuna.visualization as vis
+import pandas as pd
+
+def compute_avg_cost_and_latency(keepalive_cost_list, time_list):
+    avg_cost = sum(x for trace in keepalive_cost_list for x in trace) / \
+            sum(len(trace) for trace in keepalive_cost_list)
+    avg_latency = sum(x for trace in time_list for x in trace) / \
+                sum(len(trace) for trace in time_list)
+    return avg_cost, avg_latency
+
+def compute_overall_cost(keepalive_cost_list, time_list):
+    cost_per_min_gpu = 0.526 / 60
+    total_cost = sum(x for trace in keepalive_cost_list for x in trace)
+    total_service_time = sum(x for trace in time_list for x in trace)
+    return total_cost + total_service_time * cost_per_min_gpu
+
+# def objective(trial): 
+#     global real_list, predicted_list, selected_system
+    
+#     # Suggest values for alpha and beta
+#     alpha = trial.suggest_float("alpha", 1.5, 3.0, step=0.1)
+#     beta = trial.suggest_float("beta", 0.0, 1.5, step=0.1)
+    
+#     # Reset global state
+#     real_list = [[] for _ in range(len(trace_list))]
+#     predicted_list = [[] for _ in range(len(trace_list))]
+    
+#     controller_fft_biasplus(alpha, beta)
+#     keepalive_cost_list, running_cost_list, time_list = run()
+#     cost, latency = compute_avg_cost_and_latency(keepalive_cost_list, time_list)
+
+#     # Return both objectives: cost and latency to minimize
+#     return cost, latency
+
+def objective(trial): 
+    global real_list, predicted_list, selected_system
+    
+    # Suggest values for alpha and beta
+    alpha = trial.suggest_float("alpha", 1.5, 3.0, step=0.1)
+    beta = trial.suggest_float("beta", 0.0, 1.5, step=0.1)
+    
+    # Reset global state
+    real_list = [[] for _ in range(len(trace_list))]
+    predicted_list = [[] for _ in range(len(trace_list))]
+    
+    controller_fft_biasplus(alpha, beta)
+    keepalive_cost_list, running_cost_list, time_list = run()
+    cost = compute_overall_cost(keepalive_cost_list, time_list)
+
+    # Return both objectives: cost and latency to minimize
+    return cost
 
 def fourierExtrapolation(x, n_predict):
     n = x.size
@@ -245,12 +298,12 @@ def controller_fft_bias():
             real_list[i].append(real_value)
             predicted_list[i].append(pred_value)
 
-def controller_fft_biasplus():
+def controller_fft_biasplus(alpha=2.0, beta=0.0):
     for j in range(local_window, len(trace_list[0])):
         for i in range(len(trace_list)):
             training_trace=np.array(trace_list[i][j-local_window:j])
             n_predict = 1
-            extrapolation = fourierExtrapolationBias(training_trace, n_predict, 2, 0)
+            extrapolation = fourierExtrapolationBias(training_trace, n_predict, alpha, beta)
             pred_value=extrapolation[len(extrapolation)-1]
             # print(f"Extrap: {extrapolation}")
             # print(f"Prediction: {pred_value}")
@@ -267,33 +320,42 @@ def run():
     keepalive_cost_list=[[] for i in range(len(trace_list))]
     running_cost_list=[[] for i in range(len(trace_list))]
     time_list=[[] for i in range(len(trace_list))]
+    time_val_counter = 0
     for j in range(len(predicted_list[0])):  
         ##main running
         for i in range(len(predicted_list)):
+            exe_time=exe_time_list[i]
+            cs_time=cs_time_gpu[i]
+            cs_download_time = cs_time_download[i]
+            pr=predicted_list[i][j]
+            re=real_list[i][j]
             
-            if selected_system!=0:
-                exe_time=exe_time_list[i]
-                cs_time=cs_time_gpu[i]
-                pr=predicted_list[i][j]
-                re=real_list[i][j]
-                
-                keepalive_cost_list[i].append(pr*cost_per_min_gpu)
-                running_cost_list[i].append(re*cost_per_min_gpu*exe_time)
-                
-                ##time part
-                if re>pr:
-                    time_val_list=[exe_time for s in range(int(pr))]
-                    for s in time_val_list:
-                        time_list[i].append(s)
+            keepalive_cost_list[i].append(pr*cost_per_min_gpu)
+            running_cost_list[i].append(re*cost_per_min_gpu*exe_time)
+            
+            ##time part
+            if re>pr:
+                time_val_list=[exe_time for s in range(int(pr))]
+                for s in time_val_list:
+                    time_list[i].append(s)
+                if selected_system == 1:
                     time_val_list=[exe_time+cs_time for s in range(int(re-pr))]
-                    for s in time_val_list:
-                        time_list[i].append(s)
+                elif selected_system == 2:
+                    if time_val_counter % 10 == 0:
+                        time_val_list=[exe_time+cs_time+cs_download_time for s in range(int(re-pr))]
+                    else:
+                        time_val_list = [exe_time+cs_time for s in range(int(re-pr))]
+                    time_val_counter += 1  # Update the counter
                 else:
-                    time_val_list=[exe_time for s in range(int(re))]
-                    for s in time_val_list:
-                        time_list[i].append(s)
+                    raise ValueError(f"Unexpected selected system {selected_system}")
+                for s in time_val_list:
+                    time_list[i].append(s)
+            else:
+                time_val_list=[exe_time for s in range(int(re))]
+                for s in time_val_list:
+                    time_list[i].append(s)
 
-                # print(f"{j} {i} {re} {pr} {time_val_list}")
+            # print(f"{j} {i} {re} {pr} {time_val_list}")
                 
             # if selected_system==0:
             #     exe_time=exe_time_costly[i]
@@ -311,15 +373,17 @@ def run():
             #     time_val_list=[exe_time+cs_time for s in range(int(re))]
             #     for s in time_val_list:
             #         time_list[i].append(s)
-        print(j)
+        # print(j)
 
     return (keepalive_cost_list, running_cost_list, time_list)        
 
 if __name__ == "__main__":
     # med_trace_list = [249] 
     # tail_trace_list = [9]
-    med_trace_list = [249, 757, 1385, 1489, 1717, 1721] 
+    med_trace_list = [249, 1385, 1489, 1717, 1721] 
     tail_trace_list = [9,15,18,19,21,22]
+    # med_trace_list = [249, 757, 1385, 1489, 1717, 1721] 
+    # tail_trace_list = [9,15,18,19,21,22]
     
     exe_time_list = [0.2] * 12
     cs_time_gpu = [1] * 12
@@ -354,11 +418,51 @@ if __name__ == "__main__":
     # trace_list=[trace[:truncate + local_window] for trace in trace_list]
     # print(trace_list)
     
+    # ##################### Study ##########################
+    
+    # real_list=[[] for i in range(len(trace_list))]
+    # predicted_list=[[] for i in range(len(trace_list))]
+    # selected_system = 1
+    
+    # # Create multi-objective study
+    # # study = optuna.create_study(
+    # #     directions=["minimize", "minimize"],
+    # #     sampler=NSGAIISampler(seed=42)
+    # # )
+    # study = optuna.create_study(
+    #     direction="minimize",
+    #     sampler=NSGAIISampler(seed=42)
+    # )
+
+    # # Run tuning
+    # study.optimize(objective, n_trials=1)  # Increase n_trials for better frontier
+
+    # # Show best Pareto-optimal configs
+    # print("Best Pareto front trials:")
+    # for trial in study.best_trials:
+    #     print(f"Alpha: {trial.params['alpha']}, Beta: {trial.params['beta']}, Cost: {trial.value:.2f}")
+    # pareto_data = [{
+    #     "alpha": t.params["alpha"],
+    #     "beta": t.params["beta"],
+    #     "cost": t.value,
+    # } for t in study.best_trials]
+
+    # df = pd.DataFrame(pareto_data)
+    # df.to_csv(os.path.join(os.path.dirname(__file__), "pareto_front.csv"), index=False)
+
+    # # Visualization
+    # fig_pareto = vis.plot_pareto_front(study)
+    # fig_pareto.write_html(os.path.join(os.path.dirname(__file__), "pareto_front.html"))
+    # fig_pareto.show()
+    # vis.plot_contour(study).show()
+    # exit(0)
+    
+    # ##################### Study End ##########################
+    
     # Keep alive 10 minutes
     real_list=[[] for i in range(len(trace_list))]
     predicted_list=[[] for i in range(len(trace_list))]
-    # selected_system_list=[[] for i in range(len(trace_list))]
-    selected_system = 1
+    selected_system = 2
 
     controller_keepalive()
     
@@ -372,28 +476,9 @@ if __name__ == "__main__":
     
     write_results(os.path.join(os.path.dirname(__file__), "../results/simulation/prewarm/keepalive"))
     
-    # Oracle
+    # fft
     real_list=[[] for i in range(len(trace_list))]
     predicted_list=[[] for i in range(len(trace_list))]
-    selected_system_list=[[] for i in range(len(trace_list))]
-
-    controller_timeoracle()
-    
-    print(real_list)
-    print(predicted_list)
-    
-    keepalive_cost_list, running_cost_list, time_list = run()
-    print(keepalive_cost_list)
-    print(running_cost_list)
-    print(time_list)
-    
-    write_results(os.path.join(os.path.dirname(__file__), "../results/simulation/prewarm/oracle"))
-    
-    # Technique
-    real_list=[[] for i in range(len(trace_list))]
-    predicted_list=[[] for i in range(len(trace_list))]
-    selected_system_list=[[] for i in range(len(trace_list))]
-
     controller_fft()
     
     print(real_list)
@@ -426,7 +511,6 @@ if __name__ == "__main__":
     # Bias 2, 1
     real_list=[[] for i in range(len(trace_list))]
     predicted_list=[[] for i in range(len(trace_list))]
-    selected_system_list=[[] for i in range(len(trace_list))]
 
     controller_fft_bias()
     
@@ -440,10 +524,9 @@ if __name__ == "__main__":
     
     write_results(os.path.join(os.path.dirname(__file__), "../results/simulation/prewarm/fft_bias"))
     
-    # Bias 2, 0.7
+    # Bias 2, 0
     real_list=[[] for i in range(len(trace_list))]
     predicted_list=[[] for i in range(len(trace_list))]
-    selected_system_list=[[] for i in range(len(trace_list))]
 
     controller_fft_biasplus()
     
@@ -456,4 +539,37 @@ if __name__ == "__main__":
     print(time_list)
     
     write_results(os.path.join(os.path.dirname(__file__), "../results/simulation/prewarm/fft_biasplus"))
+    
+    # Oracle
+    real_list=[[] for i in range(len(trace_list))]
+    predicted_list=[[] for i in range(len(trace_list))]
+    selected_system = 1
+
+    controller_timeoracle()
+    
+    print(real_list)
+    print(predicted_list)
+    
+    keepalive_cost_list, running_cost_list, time_list = run()
+    print(keepalive_cost_list)
+    print(running_cost_list)
+    print(time_list)
+    
+    write_results(os.path.join(os.path.dirname(__file__), "../results/simulation/prewarm/oracle"))
+    
+    # Bias 2, 0, multi-level
+    real_list=[[] for i in range(len(trace_list))]
+    predicted_list=[[] for i in range(len(trace_list))]
+
+    controller_fft_biasplus()
+    
+    print(real_list)
+    print(predicted_list)
+    
+    keepalive_cost_list, running_cost_list, time_list = run()
+    print(keepalive_cost_list)
+    print(running_cost_list)
+    print(time_list)
+    
+    write_results(os.path.join(os.path.dirname(__file__), "../results/simulation/prewarm/fallserve"))
     
