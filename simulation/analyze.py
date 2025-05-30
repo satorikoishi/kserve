@@ -103,7 +103,7 @@ def plot_metrics_grouped(metric_dict_per_tech, title, ylabel):
     """
     techniques = list(metric_dict_per_tech.keys())
     num_traces = len(combined_list)
-    bar_width = 0.15
+    bar_width = 0.12
     x = np.arange(num_traces)  # trace indices
 
     plt.figure(figsize=(10, 5))
@@ -124,7 +124,7 @@ def plot_metrics_grouped(metric_dict_per_tech, title, ylabel):
 def plot_percentile_bars_with_error(p50_dict, p90_dict, p95_dict, title, ylabel):
     techniques = list(p90_dict.keys())
     num_traces = len(combined_list)
-    bar_width = 0.15
+    bar_width = 0.12
     x = np.arange(num_traces)
 
     plt.figure(figsize=(10, 5))
@@ -190,7 +190,7 @@ if __name__ == "__main__":
     trace_legend_list = [f"med_{tid}" for tid in med_trace_list] + [f"tail_{tid}" for tid in tail_trace_list]
     print(trace_legend_list)
     
-    technique_list = ["keepalive", "fft", "fft_bias", "fft_biasplus", "oracle", "fallserve"]
+    technique_list = ["keepalive", "fft", "fft_biasplus", "oracle", "fallserve", "fallserve_tightbudget"]
     keepalive_dict = {}
     time_dict = {}
     predicted_dict = {}

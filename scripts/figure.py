@@ -599,8 +599,8 @@ def draw_inference():
     r2 = [x + bar_width for x in r1]
 
     # Bar plot for inference and load latency
-    ax1.barh(r2, inf_list, color='b', alpha=0.8, height=bar_width, label='Inference', edgecolor='black')
-    ax1.barh(r1, load_list, color='orange', alpha=0.8, height=bar_width, label='Cold Start', edgecolor='black')
+    ax1.barh(r2, inf_list, color=cm.viridis(0.2), height=bar_width, label='Inference')
+    ax1.barh(r1, load_list, color=cm.viridis(0.7), height=bar_width, label='Cold Start')
 
     # Setting the y-axis to log scale for latency values
     ax1.set_xscale('log')
@@ -1311,6 +1311,162 @@ def draw_evaluation_performance_breakdown():
     plt.savefig(os.path.join(save_directory, f"evaluation_performance_breakdown.pdf"), bbox_inches='tight', dpi=900)
     plt.show()
 
+def draw_evaluation_prewarmsched():
+    med_trace_list = [249, 1385, 1489, 1717, 1721]
+    tail_trace_list = [9,15,18,19,21,22]
+    technique_list = ["oracle", "fallserve", "fft_biasplus", "fallserve_tightbudget", "fft", "keepalive"]
+    keepalive_dict = {}
+    time_dict = {}
+    predicted_dict = {}
+    
+    def read_data(basedir):
+        dir_name=[]
+        for item in med_trace_list:
+            dir_name.append("/med_"+str(item))
+        for item in tail_trace_list:
+            dir_name.append("/tail_"+str(item))
+                        
+        keepalive = []
+        time = []
+        predicted = []
+        actual = []
+                            
+        for item in dir_name:
+            filename=basedir+item+"/keepalive_cost_list.txt"
+            with open(filename) as f:
+                l_list=f.read().splitlines()
+                l_list=[float(i) for i in l_list]
+            keepalive.append(l_list)
+            
+            filename=basedir+item+"/time_list.txt"
+            with open(filename) as f:
+                l_list=f.read().splitlines()
+                l_list=[float(i) for i in l_list]
+            time.append(l_list)
+            
+            filename=basedir+item+"/predicted_list.txt"
+            with open(filename) as f:
+                l_list=f.read().splitlines()
+                l_list=[float(i) for i in l_list]
+            predicted.append(l_list)
+            
+            filename=basedir+item+"/true_list.txt"
+            with open(filename) as f:
+                l_list=f.read().splitlines()
+                l_list=[float(i) for i in l_list]
+            actual.append(l_list)
+            
+        return(keepalive, time, predicted, actual)
+    def compute_avg_cost_and_latency(keepalive_cost_list, time_list):
+        avg_cost = sum(x for trace in keepalive_cost_list for x in trace) / \
+            sum(len(trace) for trace in keepalive_cost_list)
+        avg_latency = sum(x for trace in time_list for x in trace) / \
+                    sum(len(trace) for trace in time_list)
+        return avg_cost, avg_latency
+
+    avg_latencies = []
+    avg_costs = []
+    
+    for tech in technique_list:        
+        keepalive, time, predicted, _ = read_data(os.path.join(os.path.dirname(__file__), f"../results/simulation/prewarm/{tech}"))
+        keepalive_dict[tech] = keepalive
+        time_dict[tech] = time
+        predicted_dict[tech] = predicted
+        
+        avg_cost, avg_lat = compute_avg_cost_and_latency(keepalive, time)
+        if tech == 'oracle':
+            oracle_cost = avg_cost
+            oracle_latency = avg_lat
+            avg_costs.append(1)
+            avg_latencies.append(1)
+        else:
+            avg_costs.append(avg_cost / oracle_cost)
+            avg_latencies.append(avg_lat / oracle_latency)
+        print(f'Tech: {tech}, cost {avg_cost}, latency {avg_lat}')
+        print(avg_latencies)
+        print(avg_costs)
+    
+    # Plotting
+    x = np.arange(len(technique_list))
+    width = 0.4
+
+    fig, ax1 = plt.subplots(figsize=(10, 6))
+
+    ax2 = ax1.twinx()
+    bars = ax1.bar(x, avg_latencies, width, label='Avg Latency (ms)', color='skyblue')
+    line = ax2.plot(x, avg_costs, label='Avg Cost ($)', color='red', marker='o', linewidth=2)
+
+    ax1.set_xlabel('Technique')
+    ax1.set_ylabel('Average Latency (ms)', color='skyblue')
+    ax2.set_ylabel('Average Cost ($)', color='red')
+    ax1.set_ylim(1, 1.8)
+    ax2.set_ylim(0, 1.5)
+
+    ax1.set_xticks(x)
+    ax1.set_xticklabels(technique_list, rotation=30)
+
+    # ax1.tick_params(axis='y', labelcolor='skyblue')
+    # ax2.tick_params(axis='y', labelcolor='red')
+
+    # Legends
+    ax1.legend(loc='upper left')
+    ax2.legend(loc='upper right')
+
+    # plt.title('Average Latency and Cost per Technique')
+    plt.tight_layout()
+    plt.savefig(os.path.join(save_directory, f"evaluation_prewarm_overall.pdf"), bbox_inches='tight', dpi=900)
+    plt.show()
+
+
+def draw_evaluation_prewarm_spec():
+    trace_ids = ['med_1489', 'tail_19']
+    techniques = ["oracle", "fallserve", "fft_biasplus", "fallserve_tightbudget", "fft", "keepalive"]
+    raw_latency = {tech: [] for tech in techniques}
+
+    def read_latency(tech, trace_str):
+        base_path = os.path.join(os.path.dirname(__file__), f"../results/simulation/prewarm/{tech}")
+        filename = os.path.join(base_path, f"{trace_str}/time_list.txt")
+        with open(filename) as f:
+            time_list = [float(line.strip()) for line in f]
+        return np.mean(time_list)
+
+    # Read all latencies
+    for tech in techniques:
+        for trace_str in trace_ids:
+            avg_latency = read_latency(tech, trace_str)
+            raw_latency[tech].append(avg_latency)
+
+    # Normalize against oracle
+    normalized_latency = {}
+    for tech in techniques:
+        norm = []
+        for i, trace_str in enumerate(trace_ids):
+            oracle_latency = raw_latency["oracle"][i]
+            norm_latency = raw_latency[tech][i] / oracle_latency if oracle_latency != 0 else 0
+            norm.append(norm_latency)
+        normalized_latency[tech] = norm
+
+    # Plotting
+    bar_width = 0.12
+    num_traces = len(trace_ids)
+    x = np.arange(num_traces)
+
+    plt.figure(figsize=(10, 5))
+
+    for i, tech in enumerate(techniques):
+        offsets = x + (i - len(techniques) / 2) * bar_width + bar_width / 2
+        plt.bar(offsets, normalized_latency[tech], width=bar_width, label=tech)
+
+    plt.title("Normalized Latency (vs Oracle) for med_1489 and tail_19")
+    plt.ylabel("Normalized Latency")
+    plt.xticks(x, trace_ids)
+    plt.axhline(1.0, color='gray', linestyle='--', linewidth=1)  # Line at oracle baseline
+    plt.legend()
+    plt.grid(axis='y', linestyle='--', alpha=0.6)
+    plt.tight_layout()
+    plt.savefig(os.path.join(save_directory, f"evaluation_prewarm_spec.pdf"), bbox_inches='tight', dpi=900)
+    plt.show()
+
 if __name__ == "__main__":
     # calc_motivation_cold_start()
     # draw_motivation_cold_start()
@@ -1318,10 +1474,12 @@ if __name__ == "__main__":
     # draw_comparison()
     # draw_cprofile()
     # draw_sagemaker()
-    draw_evaluation_base()
+    # draw_evaluation_base()
     # draw_inference()
     # draw_resource()
     # draw_chosen_trace()
     # draw_evaluation_trace_test()
     # draw_evaluation_simulation()
     # draw_evaluation_performance_breakdown()
+    draw_evaluation_prewarmsched()
+    draw_evaluation_prewarm_spec()

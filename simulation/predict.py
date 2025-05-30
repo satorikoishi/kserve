@@ -573,3 +573,19 @@ if __name__ == "__main__":
     
     write_results(os.path.join(os.path.dirname(__file__), "../results/simulation/prewarm/fallserve"))
     
+    # Bias 1.5, 0.5, multi-level
+    real_list=[[] for i in range(len(trace_list))]
+    predicted_list=[[] for i in range(len(trace_list))]
+
+    controller_fft_biasplus(1.5, 0.5)
+    
+    print(real_list)
+    print(predicted_list)
+    
+    keepalive_cost_list, running_cost_list, time_list = run()
+    print(keepalive_cost_list)
+    print(running_cost_list)
+    print(time_list)
+    
+    write_results(os.path.join(os.path.dirname(__file__), "../results/simulation/prewarm/fallserve_tightbudget"))
+    
