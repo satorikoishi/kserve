@@ -1315,6 +1315,7 @@ def draw_evaluation_prewarmsched():
     med_trace_list = [249, 1385, 1489, 1717, 1721]
     tail_trace_list = [9,15,18,19,21,22]
     technique_list = ["oracle", "fallserve", "fft_biasplus", "fallserve_tightbudget", "fft", "keepalive"]
+    technique_list_show = ['Oracle', 'FaLLServe', 'FaLLServe-S', 'FaLLServe-T', 'IceBreaker', 'No-Prewarm']
     keepalive_dict = {}
     time_dict = {}
     predicted_dict = {}
@@ -1391,31 +1392,40 @@ def draw_evaluation_prewarmsched():
         ipv_t = (lat - avg_latencies[3]) / avg_latencies[3]
         print(f"Tech: {technique_list[i+2]}, improvement {ipv}, t improvement {ipv_t}")
     
+    runtime_colors = {
+        'fallserve': (53/255, 38/255, 96/255),
+        'fft_biasplus':(85/255, 59/255, 148/255),
+        'fallserve_tightbudget': (152/255, 114/255, 202/255),
+        'fft': (226/255, 201/255, 237/255),
+        'oracle': (128/255, 128/255, 128/255),
+        'keepalive': (192/255, 192/255, 192/255)
+    }
+    colors = [runtime_colors[tech] for tech in technique_list]
     # Plotting
     x = np.arange(len(technique_list))
     width = 0.4
 
-    fig, ax1 = plt.subplots(figsize=(10, 6))
+    fig, ax1 = plt.subplots(figsize=(6, 4))
 
     ax2 = ax1.twinx()
-    bars = ax1.bar(x, avg_latencies, width, label='Avg Latency (ms)', color='skyblue')
-    line = ax2.plot(x, avg_costs, label='Avg Cost ($)', color='red', marker='o', linewidth=2)
+    bars = ax1.bar(x, avg_latencies, width, color=colors)
+    line = ax2.plot(x, avg_costs, marker='o', linewidth=2, color='black')
 
-    ax1.set_xlabel('Technique')
-    ax1.set_ylabel('Average Latency (ms)', color='skyblue')
-    ax2.set_ylabel('Average Cost ($)', color='red')
+    # ax1.set_xlabel('Technique', fontsize=12)
+    ax1.set_ylabel('Normalized Service Time', fontsize=12)
+    ax2.set_ylabel('Normalized Keep-Alive Cost', fontsize=12)
     ax1.set_ylim(1, 1.8)
     ax2.set_ylim(0, 1.5)
 
     ax1.set_xticks(x)
-    ax1.set_xticklabels(technique_list, rotation=30)
+    ax1.set_xticklabels(technique_list_show, rotation=30)
 
     # ax1.tick_params(axis='y', labelcolor='skyblue')
     # ax2.tick_params(axis='y', labelcolor='red')
 
     # Legends
-    ax1.legend(loc='upper left')
-    ax2.legend(loc='upper right')
+    # ax1.legend(loc='upper left')
+    # ax2.legend(loc='upper right')
 
     # plt.title('Average Latency and Cost per Technique')
     plt.tight_layout()
