@@ -1388,7 +1388,8 @@ def draw_evaluation_prewarmsched():
         
     for i, lat in enumerate(avg_latencies[2:]):
         ipv = (lat - avg_latencies[1]) / avg_latencies[1]
-        print(f"Tech: {technique_list[i+2]}, improvement {ipv}")
+        ipv_t = (lat - avg_latencies[3]) / avg_latencies[3]
+        print(f"Tech: {technique_list[i+2]}, improvement {ipv}, t improvement {ipv_t}")
     
     # Plotting
     x = np.arange(len(technique_list))
