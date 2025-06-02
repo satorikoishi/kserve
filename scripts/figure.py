@@ -1408,7 +1408,7 @@ def draw_evaluation_prewarmsched():
     fig, ax1 = plt.subplots(figsize=(6, 4))
 
     ax2 = ax1.twinx()
-    bars = ax1.bar(x, avg_latencies, width, color=colors)
+    bars = ax1.bar(x, avg_latencies, width, color=colors, edgecolor='black')
     line = ax2.plot(x, avg_costs, marker='o', linewidth=2, color='black')
 
     # ax1.set_xlabel('Technique', fontsize=12)
