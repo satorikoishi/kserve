@@ -1385,6 +1385,10 @@ def draw_evaluation_prewarmsched():
         print(f'Tech: {tech}, cost {avg_cost}, latency {avg_lat}')
         print(avg_latencies)
         print(avg_costs)
+        
+    for i, lat in enumerate(avg_latencies[2:]):
+        ipv = (lat - avg_latencies[1]) / avg_latencies[1]
+        print(f"Tech: {technique_list[i+2]}, improvement {ipv}")
     
     # Plotting
     x = np.arange(len(technique_list))
@@ -1482,4 +1486,4 @@ if __name__ == "__main__":
     # draw_evaluation_simulation()
     # draw_evaluation_performance_breakdown()
     draw_evaluation_prewarmsched()
-    draw_evaluation_prewarm_spec()
+    # draw_evaluation_prewarm_spec()
