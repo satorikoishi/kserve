@@ -3,6 +3,8 @@ import pandas as pd
 import numpy as np
 import matplotlib.cm as cm
 import os
+import random
+import math
 # from utils import analyze_cprofile
 from matplotlib.ticker import FixedLocator
 import matplotlib
@@ -1482,6 +1484,53 @@ def draw_evaluation_prewarm_spec():
     plt.savefig(os.path.join(save_directory, f"evaluation_prewarm_spec.pdf"), bbox_inches='tight', dpi=900)
     plt.show()
 
+def draw_evaluation_prewarm_cdf():
+    # trace_ids = ['tail_19']
+    trace_ids = ['med_1489', 'tail_19']
+    technique_list = ["fallserve", "fft_biasplus", "fallserve_tightbudget", "fft", "keepalive"]
+    technique_list_show = ['FaLLServe', 'FaLLServe-S', 'FaLLServe-T', 'IceBreaker', 'No-Prewarm']
+    
+    def read_latency_list(tech, trace_str):
+        base_path = os.path.join(os.path.dirname(__file__), f"../results/simulation/prewarm/{tech}")
+        filename = os.path.join(base_path, f"{trace_str}/time_list.txt")
+        with open(filename) as f:
+            # return the full list of latencies
+            return np.array([float(line.strip()) for line in f])
+        
+    def read_trace_latency(N_sim):
+        df = pd.read_csv(os.path.join(os.path.dirname(__file__), f"../results/trace/opt-flan-t5-base-Periodic-1m.csv"))
+        real = np.random.choice(df['E2ELatency'], size=N_sim, replace=True)
+        mu_real = real.mean()
+        residuals = real - mu_real
+        return residuals, mu_real
+    
+    def jitter_from_real(residuals, mu_real, sim):
+        return min(sim + random.choice(residuals / mu_real) * sim, 3.5) * 40
+    
+    for trace in trace_ids:
+        plt.figure(figsize=(5, 2))
+        for i, tech in enumerate(technique_list):
+            latencies = read_latency_list(tech, trace)
+            print(latencies)
+            residuals, mu_real = read_trace_latency(len(latencies))
+            print(residuals, mu_real)
+            dev_latencies = [jitter_from_real(residuals, mu_real, x) for x in latencies]
+            lat_sorted = np.sort(dev_latencies)
+            cdf = np.arange(1, len(lat_sorted)+1) / len(lat_sorted)
+            
+            lw=2-1*i/len(technique_list)
+            ls=['-','--','-.',':'][i%4]
+            plt.plot(lat_sorted, cdf, label=technique_list_show[i], linestyle=ls)
+
+        # plt.title(f"Latency CDF for trace {trace}")
+        plt.xlabel("Latency (s)")
+        plt.ylabel("Percentage (%)")
+        plt.grid(linestyle='--', alpha=0.5)
+        plt.legend(frameon=False)
+        plt.tight_layout()
+        plt.savefig(os.path.join(save_directory, f"evaluation_prewarm_cdf_{trace}.pdf"), bbox_inches='tight', dpi=900)
+        plt.show()
+
 if __name__ == "__main__":
     # calc_motivation_cold_start()
     # draw_motivation_cold_start()
@@ -1496,5 +1545,6 @@ if __name__ == "__main__":
     # draw_evaluation_trace_test()
     # draw_evaluation_simulation()
     # draw_evaluation_performance_breakdown()
-    draw_evaluation_prewarmsched()
+    # draw_evaluation_prewarmsched()
     # draw_evaluation_prewarm_spec()
+    draw_evaluation_prewarm_cdf()
