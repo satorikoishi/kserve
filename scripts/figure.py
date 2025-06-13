@@ -822,18 +822,19 @@ def draw_evaluation_trace_test():
         pivot_df = pivot_df[desired_order]
         
         # Plotting
-        fig, ax = plt.subplots(figsize=(5, 2))
-        pivot_df.plot(kind='bar', ax=ax, rot=0, width=0.8, color=[runtime_colors[x] for x in runtime_order], edgecolor='black')
+        fig, ax = plt.subplots(figsize=(2.5, 2))
+        pivot_df.plot(kind='bar', ax=ax, rot=30, width=0.8, color=[runtime_colors[x] for x in runtime_order], edgecolor='black')
 
         # Customization for better readability
-        ax.set_xlabel("", fontsize=12)
-        ax.set_ylabel("Cold Start Ratio (%)", fontsize=12)
+        ax.set_xlabel("")
+        ax.set_ylabel("Cold Start Ratio (%)", fontsize=10)
         plt.minorticks_on()
         # plt.tick_params(axis='y', which='major', length=10, width=1)  # Customize major ticks
         plt.tick_params(axis='y', which='minor', length=2.5, width=1, bottom=False)  # Customize minor ticks to be smaller
         plt.tick_params(axis='x', which='minor', length=0)
         # ax.set_title("Cold Start Ratios by Configuration and Trace Type", fontsize=15)
-        ax.legend()
+        # ax.legend()
+        ax.get_legend().remove()
 
         plt.tight_layout()
         plt.savefig(os.path.join(save_directory, f"evaluation_trace_cold_start.pdf"), bbox_inches='tight', dpi=900)
@@ -958,7 +959,7 @@ def draw_evaluation_trace_test():
     plot_aggregated_scatter(data, models, trace_labels, runtimes_trace, 20, lambda x: np.percentile(x, 90))
     
     # Aggregated percentile latency
-    plt.figure(figsize=(5, 2))
+    plt.figure(figsize=(2.5, 2))
     ax = plt.gca()
 
     bar_width = 0.2
@@ -984,15 +985,28 @@ def draw_evaluation_trace_test():
         plt.bar(x + i * bar_width, latency_data, yerr=[err_lower, err_upper], color=runtime_colors[runtime], capsize=3, width=bar_width, label=runtime_names[runtime], edgecolor='black')
 
     # plt.xlabel('Trace Label')
-    plt.ylabel('E2E Latency (s)')
+    plt.ylabel('E2E Latency (s)', fontsize=10)
     # plt.title('P90 E2E Latency by Trace Label and Runtime')
-    plt.xticks(x + group_width / 2 - bar_width, trace_labels)
+    plt.xticks(x + group_width / 2 - bar_width, trace_labels, rotation=30)
     handles, labels = ax.get_legend_handles_labels()
     # ax.set_title('Time Distribution by Method and Function')
-    ax.legend(handles, labels, loc='upper center', bbox_to_anchor=(0.5, 1.4), ncol=2, frameon=False)    
+    # ax.legend(handles, labels, loc='upper center', bbox_to_anchor=(0.5, 1.4), ncol=2, frameon=False)    
     plt.yscale('log')
     # plt.grid(linestyle='--', axis='y')
     plt.savefig(os.path.join(save_directory, f"evaluation_trace_distribution_summary.pdf"), bbox_inches='tight', dpi=900)
+    plt.show()
+    
+    # Dummy legend
+    fig_legend, ax_legend = plt.subplots(figsize=(4,0.5))
+    legend_patches = [
+        matplotlib.patches.Patch(facecolor=runtime_colors[r], label=runtime_names[r]) for r in runtime_order
+    ]
+    # for runtime in runtime_order[:-1]:
+    #     ax_legend.plot([], [], label=runtime_names[runtime], color=runtime_colors[runtime])
+    legend = ax_legend.legend(handles=legend_patches, loc='center', frameon=False, fontsize='large', ncol=4)
+    # fig_legend.canvas.draw()
+    ax_legend.axis('off')
+    plt.savefig(os.path.join(save_directory, f"evaluation_trace_legend.pdf"), bbox_inches='tight', dpi=600)
     plt.show()
     
     # # Violin plot
@@ -1507,13 +1521,28 @@ def draw_evaluation_prewarm_cdf():
     def jitter_from_real(residuals, mu_real, sim):
         return min(sim + random.choice(residuals / mu_real) * sim, 3.5) * 40
     
+    def classify_latencies(latencies):
+        warm = ((latencies >= 0.1) & (latencies < 0.5)).sum()
+        cold = ((latencies >= 0.5) & (latencies < 1.8)).sum()
+        cold_download = (latencies >= 1.8).sum()
+        total = len(latencies)
+        return {
+            'warm_ratio': warm / total,
+            'cold_ratio': cold / total,
+            'cold_download_ratio': cold_download / total
+        }
+    
     for trace in trace_ids:
+        print(trace)
         plt.figure(figsize=(5, 2))
         for i, tech in enumerate(technique_list):
             latencies = read_latency_list(tech, trace)
-            print(latencies)
+            classification = classify_latencies(latencies)
+            print(f"{tech} - Warm: {classification['warm_ratio']:.2%}, "
+                f"Cold: {classification['cold_ratio']:.2%}, "
+                f"Cold+Download: {classification['cold_download_ratio']:.2%}")
             residuals, mu_real = read_trace_latency(len(latencies))
-            print(residuals, mu_real)
+            # print(residuals, mu_real)
             dev_latencies = [jitter_from_real(residuals, mu_real, x) for x in latencies]
             lat_sorted = np.sort(dev_latencies)
             cdf = np.arange(1, len(lat_sorted)+1) / len(lat_sorted)
@@ -1542,9 +1571,9 @@ if __name__ == "__main__":
     # draw_inference()
     # draw_resource()
     # draw_chosen_trace()
-    # draw_evaluation_trace_test()
+    draw_evaluation_trace_test()
     # draw_evaluation_simulation()
     # draw_evaluation_performance_breakdown()
     # draw_evaluation_prewarmsched()
     # draw_evaluation_prewarm_spec()
-    draw_evaluation_prewarm_cdf()
+    # draw_evaluation_prewarm_cdf()
