@@ -10,6 +10,7 @@ from matplotlib.ticker import FixedLocator
 import matplotlib
 import seaborn as sns
 from matplotlib.font_manager import FontProperties
+from matplotlib.patches import Patch
 
 # model_name_list = ["bloom-560m", "bert-large-uncased"]
 model_name_list = ["bert-base-uncased", "bert-large-uncased", 
@@ -41,10 +42,10 @@ markers = {
     'sagemaker': 'v'
 }
 runtime_colors = {
-    'opt': (53/255, 38/255, 96/255),
-    'base':(85/255, 59/255, 148/255),
-    'baseplus': (152/255, 114/255, 202/255),
-    'sagemaker': (226/255, 201/255, 237/255),
+    'opt': (108/255, 66/255, 144/255),
+    'base':(144/255, 163/255, 225/255),
+    'baseplus': (245/255, 153/255, 156/255),
+    'sagemaker': (229/255, 142/255, 16/255),
     '1day': (128/255, 128/255, 128/255),
     '1m': (192/255, 192/255, 192/255)
 }
@@ -52,8 +53,24 @@ runtime_colors = {
 #     'opt': (53/255, 38/255, 96/255),
 #     'base':(85/255, 59/255, 148/255),
 #     'baseplus': (152/255, 114/255, 202/255),
+#     'sagemaker': (226/255, 201/255, 237/255),
+#     '1day': (128/255, 128/255, 128/255),
+#     '1m': (192/255, 192/255, 192/255)
+# }
+# runtime_colors = {
+#     'opt': (53/255, 38/255, 96/255),
+#     'base':(85/255, 59/255, 148/255),
+#     'baseplus': (152/255, 114/255, 202/255),
 #     'sagemaker': (246/255, 231/255, 237/255)
 # }
+runtime_hatches = {
+    'opt': '/',
+    'base':'\\',
+    'baseplus': '+',
+    'sagemaker': 'x',
+    '1day': '-',
+    '1m': '|'
+}
 desired_order = ['FaLLServe', 'KServe', 'KServe+', 'SageMaker']
 
 font_props = FontProperties(family='serif', size=12)
@@ -320,7 +337,7 @@ def draw_cprofile():
         # "load_tensor()": "xx",  # Crossed diagonal
         # "TensorBase.set()": "..",  # Dotted
         # "Unpickler.load()": "||",  # Vertical lines
-        "Other": "**"  # Stars
+        "Other": "||"  # Stars
     }
     legend_order = [
         "TensorBase.copy()",
@@ -368,7 +385,8 @@ def draw_cprofile():
             # print(label)
             if label:
                 legend_labels.add(func)
-            ax.barh(method, time, height=0.3, left=left, color=func_color_map.get(func, "#000000"), hatch=func_hatch_map[func], label=label)
+            ax.barh(method, time, height=0.3, left=left, color=func_color_map.get(func, "#000000"), label=label)
+            # ax.barh(method, time, height=0.3, left=left, color=func_color_map.get(func, "#000000"), hatch=func_hatch_map[func], label=label)
             # ax.bar(method, time, width=0.5, bottom=bottom, color=func_color_map.get(func, "#000000"), label=label)
             left += time
             # bottom += time
@@ -377,10 +395,12 @@ def draw_cprofile():
     ax.set_yticklabels([method_mapping[m] for m in methods])
     # ax.yaxis.set_major_locator(FixedLocator([0, -0.5]))
     # Manually create legend handles and labels based on the desired order
-    handles = [plt.Rectangle((0,0),1,1, color=func_color_map[func], hatch=func_hatch_map[func]) for func in legend_order]
+    handles = [plt.Rectangle((0,0),1,1, color=func_color_map[func]) for func in legend_order]
     labels = [func for func in legend_order]
     # Adding labels, title, and custom x-axis tick labels
     ax.set_xlabel('Duration (seconds)')
+    ax.grid(axis='x', linestyle='--')
+    ax.set_axisbelow(True)
     # ax.set_title('Time Distribution by Method and Function')
     ax.legend(handles, labels, loc='upper center', bbox_to_anchor=(0.5, 1.35), ncol=3, frameon=False)
     # plt.tight_layout(rect=[0, 0, 1, 0.7])
@@ -440,7 +460,11 @@ def draw_motivation():
     # plt.title('Combined Event Durations for Each Model Group')
     # plt.xticks(rotation=45)
     # plt.yticks(rotation=45)
-    plt.legend(loc='upper right')
+    ax.grid(axis='x', linestyle='--')
+    ax.set_axisbelow(True)
+    legend = plt.legend(loc='upper right')
+    legend.get_frame().set_alpha(1.0)
+    # legend.get_frame().set_edgecolor("none")
     plt.tight_layout()
     plt.savefig(os.path.join(save_directory, "motivation_latency_composition.pdf"), bbox_inches='tight', dpi=600)
     plt.show()
@@ -544,7 +568,9 @@ def draw_evaluation_base():
     # Generate bars for each runtime
     bars = []
     for i, runtime in enumerate(runtime_order):
-        bars.append(ax.barh(index + (len(runtime_order) - 1 - i) * bar_width, df_lists[runtime][::-1], bar_width, label=runtime_names[runtime], color=runtime_colors[runtime], edgecolor='black'))
+        bars.append(ax.barh(index + (len(runtime_order) - 1 - i) * bar_width, df_lists[runtime][::-1], 
+                            bar_width, label=runtime_names[runtime], 
+                            color=runtime_colors[runtime], edgecolor='black'))
 
     # # Adding the number on the bars
     # for bar in bars:
@@ -562,7 +588,10 @@ def draw_evaluation_base():
     # ax.set_title('Model Latency Comparison by Runtime')
     ax.set_yticks(index + 1.5 * bar_width)
     ax.set_yticklabels([x.capitalize() for x in model_name_list[::-1]])
-    ax.legend()
+    legend = ax.legend()
+    legend.get_frame().set_alpha(1.0)
+    ax.grid(axis='x', linestyle='--')
+    ax.set_axisbelow(True)
 
     # Display the plot
     plt.tight_layout()
@@ -823,7 +852,8 @@ def draw_evaluation_trace_test():
         
         # Plotting
         fig, ax = plt.subplots(figsize=(2.5, 2))
-        pivot_df.plot(kind='bar', ax=ax, rot=30, width=0.8, color=[runtime_colors[x] for x in runtime_order], edgecolor='black')
+        pivot_df.plot(kind='bar', ax=ax, rot=30, width=0.8, color=[runtime_colors[x] for x in runtime_order], 
+                    edgecolor='black')
 
         # Customization for better readability
         ax.set_xlabel("")
@@ -835,6 +865,8 @@ def draw_evaluation_trace_test():
         # ax.set_title("Cold Start Ratios by Configuration and Trace Type", fontsize=15)
         # ax.legend()
         ax.get_legend().remove()
+        ax.grid(axis='y', linestyle='--')
+        ax.set_axisbelow(True)
 
         plt.tight_layout()
         plt.savefig(os.path.join(save_directory, f"evaluation_trace_cold_start.pdf"), bbox_inches='tight', dpi=900)
@@ -854,13 +886,17 @@ def draw_evaluation_trace_test():
         
         fig, ax = plt.subplots(figsize=(6, 3))
         extra_runtime_order = runtime_order + ['1day', '1m']
-        pivot_df.plot(kind='bar', ax=ax, rot=0, width=0.8, color=[runtime_colors[x] for x in extra_runtime_order], edgecolor='black')
+        pivot_df.plot(kind='bar', ax=ax, rot=0, width=0.8, color=[runtime_colors[x] for x in extra_runtime_order], 
+                      edgecolor='black')
         ax.set_xlabel("", fontsize=12)
         ax.set_ylabel("Normalized Expense", fontsize=12)
         plt.minorticks_on()
+        ax.grid(axis='y', linestyle='--')
+        ax.set_axisbelow(True)
         plt.tick_params(axis='y', which='minor', length=2.5, width=1, bottom=False)  # Customize minor ticks to be smaller
         plt.tick_params(axis='x', which='minor', length=0)
-        ax.legend()    
+        legend = ax.legend()
+        legend.get_frame().set_alpha(1.0)
 
         plt.tight_layout()
         plt.savefig(os.path.join(save_directory, f"evaluation_trace_expense.pdf"), bbox_inches='tight', dpi=900)
@@ -920,7 +956,8 @@ def draw_evaluation_trace_test():
                     # Resample and aggregate
                     df_aggregated = df.groupby('Interval')['E2ELatency'].agg(aggregation_func).reset_index()
                     
-                    scatter_objects[runtime] = axes[index].scatter(df_aggregated['Interval'], df_aggregated['E2ELatency'], alpha=0.5, s=20, label=runtime_names[runtime], marker=markers[runtime])
+                    scatter_objects[runtime] = axes[index].scatter(df_aggregated['Interval'], df_aggregated['E2ELatency'], alpha=0.5, s=20, label=runtime_names[runtime], 
+                                                                   color=runtime_colors[runtime], marker=markers[runtime])
                 
                 # plt.title(f'{trace_label} E2E Latency Over Time (Aggregated by {aggregation_func.__name__.title()})')
                 axes[index].set_title(subplot_titles[index], y=-0.4, fontsize=12)
@@ -992,6 +1029,8 @@ def draw_evaluation_trace_test():
     # ax.set_title('Time Distribution by Method and Function')
     # ax.legend(handles, labels, loc='upper center', bbox_to_anchor=(0.5, 1.4), ncol=2, frameon=False)    
     plt.yscale('log')
+    ax.grid(axis='y', linestyle='--')
+    ax.set_axisbelow(True)
     # plt.grid(linestyle='--', axis='y')
     plt.savefig(os.path.join(save_directory, f"evaluation_trace_distribution_summary.pdf"), bbox_inches='tight', dpi=900)
     plt.show()
@@ -999,7 +1038,8 @@ def draw_evaluation_trace_test():
     # Dummy legend
     fig_legend, ax_legend = plt.subplots(figsize=(4,0.5))
     legend_patches = [
-        matplotlib.patches.Patch(facecolor=runtime_colors[r], label=runtime_names[r]) for r in runtime_order
+        matplotlib.patches.Patch(facecolor=runtime_colors[r], label=runtime_names[r], 
+                                 edgecolor='black') for r in runtime_order
     ]
     # for runtime in runtime_order[:-1]:
     #     ax_legend.plot([], [], label=runtime_names[runtime], color=runtime_colors[runtime])
@@ -1288,7 +1328,8 @@ def draw_evaluation_simulation():
                 plt.ylim(-10, 220)
                 plt.yticks(np.arange(0, 240, 50))
                 # plt.yticks(yticks, ytick_labels)
-                # plt.grid(linestyle='--', axis='y')
+                plt.grid(linestyle='--', axis='y')
+                plt.gca().set_axisbelow(True)
                 plt.tight_layout()
                 plt.savefig(os.path.join(save_directory, f"evaluation_simulation_alpha{alpha}.pdf"), bbox_inches='tight', dpi=600)
                 plt.show()
@@ -1408,33 +1449,47 @@ def draw_evaluation_prewarmsched():
         ipv_t = (lat - avg_latencies[3]) / avg_latencies[3]
         print(f"Tech: {technique_list[i+2]}, improvement {ipv}, t improvement {ipv_t}")
     
-    runtime_colors = {
-        'fallserve': (53/255, 38/255, 96/255),
-        'fft_biasplus':(85/255, 59/255, 148/255),
-        'fallserve_tightbudget': (152/255, 114/255, 202/255),
-        'fft': (226/255, 201/255, 237/255),
+    sched_runtime_colors = {
+        'fallserve': runtime_colors['opt'],
+        'fft_biasplus':runtime_colors['base'],
+        'fallserve_tightbudget': (160/255, 202/255, 143/255),
+        'fft': runtime_colors['baseplus'],
         'oracle': (128/255, 128/255, 128/255),
-        'keepalive': (192/255, 192/255, 192/255)
+        'keepalive': runtime_colors['sagemaker']
     }
-    colors = [runtime_colors[tech] for tech in technique_list]
+    colors = [sched_runtime_colors[tech] for tech in technique_list]
     # Plotting
     x = np.arange(len(technique_list))
-    width = 0.4
+    width = 0.35
 
-    fig, ax1 = plt.subplots(figsize=(6, 4))
+    fig, ax = plt.subplots(figsize=(5, 3))
+    bar1 = ax.bar(x - width/2, avg_latencies, width, label='Service Time', color=runtime_colors['opt'], 
+                  hatch=runtime_hatches['opt'], edgecolor='black')
+    bar2 = ax.bar(x + width/2, avg_costs, width, label='Keep-alive Cost', color=runtime_colors['base'], 
+                  hatch=runtime_hatches['base'], edgecolor='black')
+    ax.set_ylabel('Normalized Metric (Oracle = 1.0)')
+    ax.set_xticks(x)
+    ax.set_xticklabels(technique_list_show, rotation=30)
+    ax.grid(axis='y', linestyle='--')
+    ax.set_axisbelow(True)
+    handles, labels = ax.get_legend_handles_labels()
+    legend = ax.legend(handles, labels, loc='upper center', bbox_to_anchor=(0.5, 1.2), ncol=2, frameon=False)
+    # legend.get_frame().set_alpha(1.0)
+    
+    # fig, ax1 = plt.subplots(figsize=(6, 4))
 
-    ax2 = ax1.twinx()
-    bars = ax1.bar(x, avg_latencies, width, color=colors, edgecolor='black')
-    line = ax2.plot(x, avg_costs, marker='o', linewidth=2, color='black')
+    # ax2 = ax1.twinx()
+    # bars = ax1.bar(x, avg_latencies, width, color=colors, edgecolor='black')
+    # line = ax2.plot(x, avg_costs, marker='o', linewidth=2, color='black')
 
-    # ax1.set_xlabel('Technique', fontsize=12)
-    ax1.set_ylabel('Normalized Service Time', fontsize=12)
-    ax2.set_ylabel('Normalized Keep-Alive Cost', fontsize=12)
-    ax1.set_ylim(1, 1.8)
-    ax2.set_ylim(0, 1.5)
+    # # ax1.set_xlabel('Technique', fontsize=12)
+    # ax1.set_ylabel('Normalized Service Time', fontsize=12)
+    # ax2.set_ylabel('Normalized Keep-Alive Cost', fontsize=12)
+    # ax1.set_ylim(1, 1.8)
+    # ax2.set_ylim(0, 1.5)
 
-    ax1.set_xticks(x)
-    ax1.set_xticklabels(technique_list_show, rotation=30)
+    # ax1.set_xticks(x)
+    # ax1.set_xticklabels(technique_list_show, rotation=30)
 
     # ax1.tick_params(axis='y', labelcolor='skyblue')
     # ax2.tick_params(axis='y', labelcolor='red')
@@ -1445,7 +1500,7 @@ def draw_evaluation_prewarmsched():
 
     # plt.title('Average Latency and Cost per Technique')
     plt.tight_layout()
-    plt.savefig(os.path.join(save_directory, f"evaluation_prewarm_overall.pdf"), bbox_inches='tight', dpi=900)
+    plt.savefig(os.path.join(save_directory, f"evaluation_prewarm_overall_dualbar.pdf"), bbox_inches='tight', dpi=900)
     plt.show()
 
 
@@ -1571,9 +1626,9 @@ if __name__ == "__main__":
     # draw_inference()
     # draw_resource()
     # draw_chosen_trace()
-    draw_evaluation_trace_test()
+    # draw_evaluation_trace_test()
     # draw_evaluation_simulation()
     # draw_evaluation_performance_breakdown()
-    # draw_evaluation_prewarmsched()
+    draw_evaluation_prewarmsched()
     # draw_evaluation_prewarm_spec()
     # draw_evaluation_prewarm_cdf()
